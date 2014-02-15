@@ -1,82 +1,42 @@
 '''
-Created on Sep 9, 2013
+Created on Feb 12, 2013
 
-@author: gabo
+@author: Mauricio Pradilla, mpradilla
 '''
-from radon.metrics import mi_visit, mi_parameters, mi_rank
-from radon.raw import analyze
-from radon.complexity import cc_visit
-from openhub_exceptions import TimeoutException
+#from openhub_exceptions import TimeoutException
 import os
+import subprocess
 
 #===============================================================================
-# Maintainability Index is asoftware metric which measures how maintainable
-# (easy to support and change) thesource code is. The maintainability index
-# is calculated as a factored formula consisting of SLOC (Source Lines Of Code),
-#  Cyclomatic Complexity and Halstead volume.
+# Extract Project DSM with Dtangler https://support.requeste.com/dtangler/index.php
 #===============================================================================
-def get_maintenability_index(content):
-    try:
-        return  mi_visit(content,False)
-    except TimeoutException as e:
-        raise e
-    except:
-        return 0
-
-#===============================================================================
-# Analyze the source code and return a namedtuple with the following fields:
-#         loc: The number of lines of code (total)
-#         lloc: The number of logical lines of code
-#         sloc: The number of source lines of code (not necessarily corresponding to the LLOC)
-#         comments: The number of Python comment lines
-#         multi: The number of lines which represent multi-line strings
-#         blank: The number of blank lines (or whitespace-only ones)
-#===============================================================================
-def get_code_metrics(content):
-    try:
-        var = analyze(content)
-        return float(var[3]+var[4])/(var[1])
-    except TimeoutException as e:
-        raise e
-    except:
-        return 0
-#===============================================================================
-# returns a list of blocks with respect to complexity. A block is a either Function object or a Class object.
-#===============================================================================
-def get_cyclomatic_complexity(content):
-    try:
-        return cc_visit(content)
-    except TimeoutException as e:
-        raise e
-    except:
-        return 0
-
 def run_test(id, path, repo_db):
-    num_files = 0
-    avg_maintenability = 0
-    avg_documentation = 0
+    
+    p = subprocess.Popen(["java", "-jar", "dtangler-core.jar","-input=/"+path], stdout=subprocess.PIPE)
+    out, err = p.communicate()
     response = {}
-    print "Calculating maintainability on source..."
-    for root, subFolders, files in os.walk(path):
-        for file in files:
-            if (file.endswith('.py')):
-                # print file
-                with open(os.path.join(root, file), 'r') as content_file:
-                    content = content_file.read()
-                    avg_maintenability += get_maintenability_index(content)
-                    try:
-                        avg_documentation += get_code_metrics(content)
-                    except TimeoutException as e:
-                        raise e
-                    except:
-                        pass
-                    #print get_cyclomatic_complexity(content)
-                    num_files += 1
-                content_file.close()
+    print "Calculating DSM for packages..."
+    matrix = out.split('|', 1 )[1]
+    #print matrix.split('\n',1)[0]  get all columns
+    matrix = matrix.rsplit('|',1)[0]
+    matrix = "|"+matrix+"|"
+    print matrix
+    
+    response["dsm_packages"] = matrix
+    
+    
+    # CLASS DSM
+    p = subprocess.Popen(["java", "-jar", "dtangler-core.jar","-input=/"+path,"-scope=classes"], stdout=subprocess.PIPE)
+    out, err = p.communicate()
+    response = {}
+    print "Calculating DSM for classes..."
+    matrix = out.split('|', 1 )[1]
+    matrix = matrix.rsplit('|',1)[0]
+    matrix = "|"+matrix+"|"
+    
+    response["dsm_classes"] = matrix
     print "Done"
-    response["maintenability_index"] = (avg_maintenability/num_files)
-    response["documentation_index"] = (avg_documentation/num_files)
     return response
 
 if __name__ == '__main__':
-    main(os.path.dirname(__file__))
+    run_test(None, '/Users/dasein/Documents/TESIS/scribe-java-master', None)
