@@ -1,4 +1,8 @@
-#AUTOR: Mauricio Pradilla
+'''
+Created on Feb 12, 2014
+    
+@author: Mauricio Pradilla, mpradilla
+'''
 
 import os
 from xml.dom.minidom import parse
@@ -8,13 +12,16 @@ def run_test(id, path, repo_db):
     print "Getting project dependencies ..."
     
     try :
-        pomFile = xml.parse(path+'pom.xml')
-        root = pomFile.getroot()
-        mappings = getMappings(root)
-        print mappings
-        return mappings
+        for root, subFolders, files in os.walk(path):
+            for f in files:
+                if 'POM.XML' in f.upper():
+                    pomFile = xml.parse(os.path.join(root, f))
+                    root = pomFile.getroot()
+                    mappings = getMappings(root)
+                    print mappings
+                    return mappings
     except:
-        print "Pom.xml not found"
+        print "POM_NOT_FOUND"
         return ""
 
 #Auxiliar method to analyze the pom.xml file
@@ -48,4 +55,5 @@ def getMappings(rootNode):
 
 
 if __name__ == '__main__':
-    run_test(None, '/Users/dasein/Documents/TESIS/github-readme-maven-plugin-master/', None)
+    #run_test(None, '/Users/dasein/Documents/TESIS/github-readme-maven-plugin-master/', None)
+    run_test(None, os.path.dirname(__file__), None)
