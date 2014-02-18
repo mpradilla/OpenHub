@@ -1,82 +1,55 @@
 '''
-Created on Sep 9, 2013
-
-@author: gabo
+    Created on Aug 18, 2013
+    
+    @author: Gabriel Farah
 '''
-from radon.metrics import mi_visit, mi_parameters, mi_rank
-from radon.raw import analyze
-from radon.complexity import cc_visit
-from openhub_exceptions import TimeoutException
+from markdown import markdown
+import sys
+from bs4 import BeautifulSoup
+from sklearn.externals import joblib
+import numpy as np
 import os
 
-#===============================================================================
-# Maintainability Index is asoftware metric which measures how maintainable
-# (easy to support and change) thesource code is. The maintainability index
-# is calculated as a factored formula consisting of SLOC (Source Lines Of Code),
-#  Cyclomatic Complexity and Halstead volume.
-#===============================================================================
-def get_maintenability_index(content):
-    try:
-        return  mi_visit(content,False)
-    except TimeoutException as e:
-        raise e
-    except:
-        return 0
+def features_extraction(clean_html):
+    result_list = ""
+    soup = BeautifulSoup(clean_html)
+    #------------------------------- text = ''.join(soup.findAll(text=True))
+    tags = ['b','h1','h2','h3','h4','h5','h6']
+    for link in soup.find_all(tags):
+        temp_text = link.text
+        for ch in ['&','#','_','?','.','-','1','2','3','4','5','6','7','8','9','0']:
+            if ch in temp_text:
+                temp_text=temp_text.replace(ch," ")
+        result_list = result_list+" "+temp_text
+    return result_list
 
-#===============================================================================
-# Analyze the source code and return a namedtuple with the following fields:
-#         loc: The number of lines of code (total)
-#         lloc: The number of logical lines of code
-#         sloc: The number of source lines of code (not necessarily corresponding to the LLOC)
-#         comments: The number of Python comment lines
-#         multi: The number of lines which represent multi-line strings
-#         blank: The number of blank lines (or whitespace-only ones)
-#===============================================================================
-def get_code_metrics(content):
-    try:
-        var = analyze(content)
-        return float(var[3]+var[4])/(var[1])
-    except TimeoutException as e:
-        raise e
-    except:
-        return 0
-#===============================================================================
-# returns a list of blocks with respect to complexity. A block is a either Function object or a Class object.
-#===============================================================================
-def get_cyclomatic_complexity(content):
-    try:
-        return cc_visit(content)
-    except TimeoutException as e:
-        raise e
-    except:
-        return 0
+def load_and_clear_file(local_path):
+    with open(local_path, 'r') as content_file:
+        content = content_file.read()
+    content_file.close()
+    return markdown(content.decode('utf-8'))
 
 def run_test(id, path, repo_db):
-    num_files = 0
-    avg_maintenability = 0
-    avg_documentation = 0
-    response = {}
-    print "Calculating maintainability on source..."
+    response= {}
     for root, subFolders, files in os.walk(path):
-        for file in files:
-            if (file.endswith('.py')):
-                # print file
-                with open(os.path.join(root, file), 'r') as content_file:
-                    content = content_file.read()
-                    avg_maintenability += get_maintenability_index(content)
-                    try:
-                        avg_documentation += get_code_metrics(content)
-                    except TimeoutException as e:
-                        raise e
-                    except:
-                        pass
-                    #print get_cyclomatic_complexity(content)
-                    num_files += 1
-                content_file.close()
-    print "Done"
-    response["maintenability_index"] = (avg_maintenability/num_files)
-    response["documentation_index"] = (avg_documentation/num_files)
-    return response
+        for f in files:
+            if 'README' in f.upper():
+                print "Analyzing README docs"
+                clean_html = load_and_clear_file(os.path.join(root, f))
+                response["README_HTML"] = clean_html
+                result_list = features_extraction(clean_html)
+                #Load the saved classifier
+                classifier = joblib.load(os.path.dirname(os.path.realpath(__file__))+'/pickles/model.pkl')
+                #convert our list of headers to an array
+                X_test = np.array([result_list])
+                # target_names = ['Bad', 'Average', 'Good']
+                #predict the class
+                response["README_ANALYSIS"] = int(classifier.predict(X_test))
+                return response
+    
+    print "No README file"
+    return 0
 
-if __name__ == '__main__':
-    main(os.path.dirname(__file__))
+
+if __name__=='__main__':
+    run_test(None, os.path.dirname(__file__), None)
