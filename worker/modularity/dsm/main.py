@@ -9,6 +9,7 @@ import subprocess
 import time
 import commands
 import zlib
+from propagation_cost import calculatePropagationCost
 
 #===============================================================================
 # Extract Project DSM with Dtangler https://support.requeste.com/dtangler/index.php
@@ -27,6 +28,8 @@ def run_test(id, path, repo_db):
     matrix = "|"+matrix+"|"
     print matrix
     
+    cost = calculatePropagationCost(matrix)
+    
     #Compress DSM before saving
     matrix = compressDSMMatrix(matrix)
     response["dsm_packages"] = matrix
@@ -35,10 +38,14 @@ def run_test(id, path, repo_db):
     p = subprocess.Popen(["java","-Xmx6G", "-jar", "dtangler-core.jar","-input=/"+path,"-scope=classes"], stdout=subprocess.PIPE)
     out, err = p.communicate()
     response = {}
+    print matrix
     print "Calculating DSM for classes..."
     matrix = out.split('|', 1 )[1]
     matrix = matrix.rsplit('|',1)[0]
     matrix = "|"+matrix+"|"
+    
+   
+    
     
     #Compress DSM before saving
     matrix = compressDSMMatrix(matrix)

@@ -6,10 +6,10 @@ usesDict={}
 def load_data():
     count =0
     data = []
-    with open('data/firstRoundCompleted.json') as f:
+    with open('data/reposSecondCompleted.json') as f:
         for line in f:
             data.append(json.loads(line))
-            if count > 10000:
+            if count > 1000000:
                 break
             else:
                 count+=1
@@ -66,7 +66,7 @@ def getTotalProcessingTimeSize(data):
     totalSuccessDSMs = len(data)-emptyDSMClasses
     
     print "Total projects analized: " + str(len(data))
-    print "Total Succes DSM_classes obtained" + str(totalSuccessDSMs)
+    print "Total Succes DSM_classes obtained: " + str(totalSuccessDSMs)
     print "Total Time processing DSMs: " + str(time)
     print "Average Time processing DSMs: " + str(time/len(data))
     print "Total Time processing succeed DSMs: " + str(timeSuccessDSMs)
