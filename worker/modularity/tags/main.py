@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from sklearn.externals import joblib
 import numpy as np
 import os
+import zlib
 
 def features_extraction(clean_html):
     result_list = ""
@@ -36,6 +37,10 @@ def run_test(id, path, repo_db):
             if 'README' in f.upper():
                 print "Analyzing README docs"
                 clean_html = load_and_clear_file(os.path.join(root, f))
+                
+                #compress REAMME before saving
+                clean_html = compressTxt(clean_html)
+                
                 response["README_HTML"] = clean_html
                 result_list = features_extraction(clean_html)
                 #Load the saved classifier
@@ -49,6 +54,29 @@ def run_test(id, path, repo_db):
     
     print "No README file"
     return 0
+
+
+#AUX METHOD
+def compressTxt(input):
+    #Compress Matrix string
+    try:
+        before = len(input)
+        #print "before: " +str(len(matrix))
+        matrix = zlib.compress(input,6)
+        #print matrix
+        #print "after: " + str(len(matrix))
+        print "Compressed: " + str((((len(input))-before)/before)*100)
+        return input
+    except:
+        print "[****ERROR****]:Compressing DSM Matrix"
+
+def decompressTxt(matrix):
+    
+    try:
+        return zlib.decompress(input)
+    except:
+        print "[****ERROR****]:Decompressing DSM Matrix"
+
 
 
 if __name__=='__main__':
