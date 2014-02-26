@@ -9,7 +9,7 @@ def load_data():
     with open('data/reposSecondCompleted.json') as f:
         for line in f:
             data.append(json.loads(line))
-            if count > 1000000:
+            if count > 1000000000:
                 break
             else:
                 count+=1
