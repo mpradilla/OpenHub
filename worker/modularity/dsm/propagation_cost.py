@@ -8,6 +8,8 @@ import zlib
 import time
 import numpy as np
 
+
+
 #===============================================================================
 # Analyze DSMs and calculate the propagation cost. Based on MacCormack et.al 2005
 #===============================================================================
@@ -20,58 +22,63 @@ def calculatePropagationCost(dsmText):
     start_time = time.time()
     cost = 0
 
+    #Decompress the DSM
+    
+
+    #Process the DSM text into a matrix data structure
     lines = dsmText.split('\n');
-    # print lines
     dsm=[]
     for line in lines:
         columns = line.split('|');
+        for i, colu in enumerate(columns):
+            colu2 = colu.replace(" ", "")
+            columns[i]= colu2
+            
         dsm.append(columns)
-    #print columns
 
+#   dsm= [['','A','B','C','D','E','F'],
+#      ['A','','1','1','','',''],
+#      ['B','','','','1','',''],
+#      ['C','','','','','1',''],
+#      ['D','','','','','',''],
+#      ['E','','','','','','1'],
+#      ['F','','','','','','']
+#      ]
     
-    
-
-    dsm= [['','A','B','C','D','E','F'],
-         ['A','0','1','1','0','0','0'],
-         ['B','0','0','0','1','0','0'],
-         ['C','0','0','0','0','1','0'],
-         ['D','0','0','0','0','0','0'],
-         ['E','0','0','0','0','0','1'],
-         ['F','0','0','0','0','0','0']
-    ]
-    print dsm
-
+    #Calculate Sucesive Powers of the Dpendency Matrix
     for i in range(len(dsm)-1, 0, -1):
         for j in range(len(dsm)-1, 0, -1):
-            print dsm[i][j]
             if i==j:
-                dsm[i][j]="1"
-            elif dsm[i][j]=="1":
-                print "oo"
+                dsm[i][j]=1
+            elif dsm[i][j] is not "":
+                #Change all weight of deps to 1
+                dsm[i][j]=1
                 for k in range(len(dsm)-1,0,-1):
-                    print "--" + str(dsm[j][k])
-                    if dsm[j][k]=="1":
+                    if dsm[j][k]is not "":
                         #transitive dep for element in row i
-                        print "TRUE"
-                        dsm[i][k]="1"
-    
+                        dsm[i][k]=1
 
+    #Calculate the Fan-Out Visibility for the whole system
 
-    print dsm
+    totalSum =0
+    for row in dsm:
+        Outcount = 0
+        for col in row:
+            if col == 1 or col =="1":
+                Outcount+=1
+        totalSum+=Outcount
 
-
-
+    totalSum=float(totalSum*100)
+    down = float(len(dsm) -1)
+    down = down*down
+    cost = float(totalSum/down)
+    print "FAN-OUT-VISIBILITY: " + str(cost)
     print "::::::::::::::::::::::::::::::"
+    print "TIME NEEDED" + str(time.time()-start_time)
     return cost
 
 
-''''
-    for lin in dsm:
-    for i, colu in enumerate(lin):
-    colu2 = colu.replace(" ", "")
-    lin[i]= colu2
-    
-    print dsm'''
+
 
 
     # print dsm
@@ -82,17 +89,24 @@ def calculatePropagationCost(dsmText):
 
 
 
-#Decompress the DSM
 
+#######################################################
+#TEST METHOD
+#######################################################
 
-#Process the DSM text into a matrix data structure
+def test_propagation_cost(dsm):
 
+    dsm= [['','A','B','C','D','E','F'],
+          ['A','0','1','1','0','0','0'],
+          ['B','0','0','0','1','0','0'],
+          ['C','0','0','0','0','1','0'],
+          ['D','0','0','0','0','0','0'],
+          ['E','0','0','0','0','0','1'],
+          ['F','0','0','0','0','0','0']
+    ]
 
-#Calculate Sucesive Powers of the Dpendency Matrix
-
-
-#Calculate the Fan-Out Visibility for the whole system
-
+    ans=calculatePropagationCost(dsm)
+    print "TEST" + str(ans)
 
 
 #######################################################
