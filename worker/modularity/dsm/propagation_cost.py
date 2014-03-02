@@ -4,11 +4,7 @@ Created on Feb 20, 2013
 @author: Mauricio Pradilla, mpradilla
 '''
 
-import zlib
 import time
-import numpy as np
-
-
 
 #===============================================================================
 # Analyze DSMs and calculate the propagation cost. Based on MacCormack et.al 2005
@@ -16,25 +12,12 @@ import numpy as np
 
 #ANALISIS METHOD HEADER
 
-def calculatePropagationCost(dsmText):
+def calculatePropagationCost(dsm):
     print "::::::::::::::::::::::::::::::"
 
     start_time = time.time()
     cost = 0
 
-    #Decompress the DSM
-    
-
-    #Process the DSM text into a matrix data structure
-    lines = dsmText.split('\n');
-    dsm=[]
-    for line in lines:
-        columns = line.split('|');
-        for i, colu in enumerate(columns):
-            colu2 = colu.replace(" ", "")
-            columns[i]= colu2
-            
-        dsm.append(columns)
 
 #   dsm= [['','A','B','C','D','E','F'],
 #      ['A','','1','1','','',''],
@@ -73,21 +56,13 @@ def calculatePropagationCost(dsmText):
     down = down*down
     cost = float(totalSum/down)
     print "FAN-OUT-VISIBILITY: " + str(cost)
-    print "::::::::::::::::::::::::::::::"
     print "TIME NEEDED" + str(time.time()-start_time)
-    return cost
+    print "::::::::::::::::::::::::::::::"
 
-
-
-
-
-    # print dsm
-    
-    
-    #Build response
-    #response["pcost_process_time"] = time.time() - start_time
-
-
+    response ={}
+    response["value"]= cost
+    response["time"]= time.time() - start_time
+    return response
 
 
 #######################################################
