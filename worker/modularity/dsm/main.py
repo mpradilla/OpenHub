@@ -10,6 +10,7 @@ import time
 import commands
 import zlib
 from propagation_cost import calculatePropagationCost
+from clustering_cost import calculateClusteringCost
 
 #===============================================================================
 # Extract Project DSM with Dtangler https://support.requeste.com/dtangler/index.php
@@ -26,9 +27,12 @@ def run_test(id, path, repo_db):
             #print matrix.split('\n',1)[0]  get all columns
     matrix = matrix.rsplit('|',1)[0]
     matrix = "|"+matrix+"|"
-    print matrix
+    #print matrix
     
-    cost = calculatePropagationCost(matrix)
+    dsmStructure = convertDSMTextTomatrix(matrix)
+    #prop_cost = calculatePropagationCost(dsmStructure)
+    clus_cost = calculateClusteringCost(dsmStructure)
+    
     
     #Compress DSM before saving
     matrix = compressDSMMatrix(matrix)
@@ -38,14 +42,15 @@ def run_test(id, path, repo_db):
     p = subprocess.Popen(["java","-Xmx6G", "-jar", "dtangler-core.jar","-input=/"+path,"-scope=classes"], stdout=subprocess.PIPE)
     out, err = p.communicate()
     response = {}
-    print matrix
+    #print matrix
     print "Calculating DSM for classes..."
     matrix = out.split('|', 1 )[1]
     matrix = matrix.rsplit('|',1)[0]
     matrix = "|"+matrix+"|"
     
    
-    
+    dsmStructure = convertDSMTextTomatrix(matrix)
+    clus_cost = calculateClusteringCost(dsmStructure)
     
     #Compress DSM before saving
     matrix = compressDSMMatrix(matrix)
@@ -71,7 +76,21 @@ def run_test(id, path, repo_db):
 
 
 
-#AUX METHOD
+#AUX METHODS
+def convertDSMTextTomatrix(dsmText):
+    #Process the DSM text into a matrix data structure
+    lines = dsmText.split('\n');
+    dsm=[]
+    for line in lines:
+        columns = line.split('|');
+        for i, colu in enumerate(columns):
+            colu2 = colu.replace(" ", "")
+            columns[i]= colu2
+    
+        dsm.append(columns)
+    return dsm
+
+
 def compressDSMMatrix(matrix):
     #Compress Matrix string
     try:
@@ -96,4 +115,5 @@ def decompressDSMMatrix(matrix):
 
 if __name__ == '__main__':
     run_test(None, '/Users/dasein/Documents/TESIS/scribe-java-master', None)
+    #run_test(None, '/Users/dasein/Documents/TESIS/dtangler-master', None)
     #run_test(None, os.path.dirname(__file__), None)
