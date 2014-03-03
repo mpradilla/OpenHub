@@ -14,6 +14,7 @@ import matplotlib.pylab as plt
 from pylab import plot,show
 from numpy import vstack,array
 from scipy.cluster.vq import kmeans,vq
+from math import sqrt
 #===============================================================================
 # Analyze DSMs and calculate the clustering cost. Based on MacCormack et.al 2005
 #===============================================================================
@@ -22,7 +23,8 @@ from scipy.cluster.vq import kmeans,vq
 clusters=[]
 buses=[]
 dsm=[]
-alpha = 10.0
+dsmSize=-1
+alpha = 5.0
 lamd = 2.0
 
 def getLamda():
@@ -34,11 +36,35 @@ def getAlpha():
     return float(alpha)
 
 def setBuses(buss):
+    global buses
     buses=buss
 
 def getBuses():
     global buses
     return buses
+
+def getClusters():
+    global clusters
+    return clusters
+
+def setClusters(cl):
+    global clusters
+    clusters=cl
+
+def getDSM():
+    global dsm
+    return dsm
+
+def setDSM(ds):
+    global dsm
+    dsm=ds
+
+def getDsmSize():
+    global dsmSize
+    return dsmSize
+
+def setDsmSize(size):
+    dsmSize =size
 
 def cleanDSM(dsm):
     
@@ -59,17 +85,13 @@ def cleanDSM(dsm):
 
 #ANALISIS METHOD HEADER
 def calculateClusteringCost(dsm):
-    print "::::::::::::::::::::::::::::::"
     
-    global clusters
-    global buses
-
+    print "::::::::::::::::::::::::::::::"
+ 
     start_time = time.time()
     cost = 0
     
-    
-    print "size"
-    print len(dsm)
+    print "DSM size: " + str(len(dsm))
 
     dsmo = [['','A','B','C','D','E','F'],
            ['A','','1','1','','',''],
@@ -80,19 +102,19 @@ def calculateClusteringCost(dsm):
            ['F','','1','','','','']
     ]
 
-
     #remove first row and first column
     vals = [line[1:] for line in dsm[1:]]
-    #dsmFix = cleanDSM(vals)
-    #plt.plot(dsmFix)
-
     sx,sy = cleanDSM(vals)
     
+    setDSM(vals)
+    setDsmSize(len(vals))
 
     #Calculate DSM Vertical Buses
     mayor = -1
     may = 0
+    buses=[]
     coords = []
+    coordsProjected = []
     for i in range(1, len(dsm), 1):
         colCount = 0
         for j in range(1, len(dsm), 1):
@@ -100,12 +122,13 @@ def calculateClusteringCost(dsm):
             if dsm[j][i] != "":
                 colCount+=1
                 coords.append([i,j])
+                coordsProjected.append([0,j])
         if colCount!=0:
             y = float(colCount)
             z= float(len(dsm)-1)
             w = float(100/z)
             x = float(w*y)
-            if x > 10.0:
+            if x > getAlpha():
                 buses.append(dsm[0][i])
         
             if colCount > mayor:
@@ -117,30 +140,54 @@ def calculateClusteringCost(dsm):
     #plt.plot([204, 204], [250, 0], 'k-', lw=2)
     for bus in buses:
         plt.plot([bus,bus],[len(dsm), 0], 'k-', lw=2)
+    
+    
+    
+    
+    #plt.gca().invert_yaxis()
+    #plt.show()
 
-#plt.gca().invert_yaxis()
-#plt.show()
+    deletes = 0
+    for i in range(0,len(coords),1):
+        print coords[i][0]
+        if isInList(coords[i][0],buses):
+            del coordsProjected[i-deletes]
+            print "deleted" + str(i)
+            deletes+=1
 
 
-#  cluster = [[1,2],[3,4]]
-#   for depp in cluster:
-#       print depp[0]
 
-           #            [[i,j],[i2,j2],...cluster N] ]
+    ar = [1, 2, 3, 60, 70, 80, 100, 220, 230, 250]
+    for cluster in parse(sy, 5):
+        print(cluster)
 
-        #   for row in dsm:
-        #    for j in row:
-        #        print j
-        #        data.append(j)
+    
 
 # data generation
     #data = vstack((rand(150,2) + array([.5,.5]),rand(150,2)))
-    data = vstack(coords)
-    
+    data = vstack(coordsProjected)
+    #data = vstack(sy)
     
 # now with K = 3 (3 clusters)
-    centroids,_ = kmeans(data,3)
+    num = round(int(getDsmSize())*float(getAlpha()/100))
+    centroids,_ = kmeans(data,5)
     idx,_ = vq(data,centroids)
+
+    ''''
+    plot(data[idx==0],'ob',
+    data[idx==1],'or',
+    data[idx==2],'og') # third cluster points
+    plot(centroids[:,0],'sm',markersize=8)
+    plt.gca().invert_yaxis()
+    plt.show()
+     '''
+    for i in range(0,len(centroids),1):
+        plt.plot([0,len(dsm)],[centroids[i,1],centroids[i,1]], 'k-', lw=2)
+
+
+    co=0
+    for i in range(0,len(centroids),1):
+        print "centroid: "+str(centroids[i,1]) + "  j: "+str(centroids[i,0])
 
     plot(data[idx==0,0],data[idx==0,1],'ob',
     data[idx==1,0],data[idx==1,1],'or',
@@ -148,26 +195,27 @@ def calculateClusteringCost(dsm):
     plot(centroids[:,0],centroids[:,1],'sm',markersize=8)
     plt.gca().invert_yaxis()
     plt.show()
+   
 
-    clusters = [coords]
-#for coord in coords:
-#       clusters.append([coord])
 
+
+    clusters = []
+    '''
+    for i in range(0, len(data[idx==0,0]), 1):
+        #clusters += [[data[0],data[1]]]
+        print data[0]
+        print data[1]
+        #clusters[i].append([data[i][idx==i,0],data[i][idx==i,0]])
+
+    print clusters
+    '''
+
+    #UPDATE GLOBAL VARIABLES
+    setBuses(buses)
+    setClusters(clusters)
 
     #print clusters
     print "CLUSTER COST v1: " +str(calculateTotalClustersCost())
-
-#
-#    X = rand(10,100)
-#    X[0:5,:] *= 2
-#    Y = pdist(X)
-#    Z = linkage(Y)
-#    dendrogram(Z)
-#    plt.show()
-
-#print "USED in " + str(colCount) + " from " + str(len(dsm)-1)
-#print "------"
-
 
     print len(buses)
     print buses
@@ -190,38 +238,64 @@ def calculateClusteringCost(dsm):
 # clusters["new_cost"] = new_bid_cost
 # clusters["deps"] = [[dep1],[dep2],...,[depN]
 
+def stat(lst):
+    """Calculate mean and std deviation from the input list."""
+    n = float(len(lst))
+    mean = sum(lst) / n
+    stdev = sqrt((sum(x*x for x in lst) / n) - (mean * mean))
+    return mean, stdev
+
+def parse(lst, n):
+    cluster = []
+    for i in lst:
+        if len(cluster) <= 1:    # the first two values are going directly in
+            cluster.append(i)
+            continue
+        
+        mean,stdev = stat(cluster)
+        if abs(mean - i) > n * stdev:    # check the "distance"
+            yield cluster
+            cluster[:] = []    # reset cluster to the empty list
+        
+        cluster.append(i)
+    yield cluster           # yield the last cluster
+
+
+
 
 #Get total clustering cost - with clusters array
-
 def calculateTotalClustersCost():
 
-    global clusters
-    global buses
-    global dsm
-
+    dsm = getDSM()
+    
     cost = 0
-    for cluster in clusters:
+    for cluster in getClusters():
         clusterSize = getClusterSize(cluster)
-        clusterSize = int(clusterSize[0])
+        clusterSize = int(clusterSize)
         clusterCost = 0
         for dep in cluster:
             i = dep[0]
             j = dep[1]
             depCost = 0
             #Vertical bus, dep cost = 1
-            if isInList(j,buses):
+            # print "depee: "+str(j)
+            if isInList(j,getBuses()):
                 depCost = 1
-                print "BUS "+ str(j)+ " USED"
+                #print "BUS "+ str(j)+ " USED"
             elif i!=j:
-                
                 #check if they are in the same cluster
+                #print "same cl: "+str(dep) + " cluster: "+str(cluster)
                 if isInList(dep,cluster):
+                    #print "SAME CLUSTER"
                     lamd = float(getLamda())
                     depCost =clusterSize**lamd
                 else:
+                    #print "ANOTHER CLUSTER"
                     depCost =(len(dsm))**float(getLamda())
 
             clusterCost+=depCost
+            if depCost!=1 and j!=i:
+                print "depCosts: " + str(depCost) + "i:" + str(i) + "j: " + str(j)
         cost+=clusterCost
     return cost
 
@@ -283,7 +357,7 @@ def clusterShareSize(dependen):
 def isInList(input,list):
 
     for element in list:
-        if element == input:
+        if str(element) == str(input):
             return True
     return False
 
