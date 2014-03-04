@@ -184,10 +184,80 @@ def calculateClusteringCost(dsm):
     for i in range(0,len(centroids),1):
         plt.plot([0,len(dsm)],[centroids[i,1],centroids[i,1]], 'k-', lw=2)
 
-
     co=0
     for i in range(0,len(centroids),1):
         print "centroid: "+str(centroids[i,1]) + "  j: "+str(centroids[i,0])
+
+    #Sort ascending the centroids
+    sortedCent = []
+    ult = -1
+    for i in range(0,len(centroids),1):
+        if ult!=-1:
+            for j in range(0,len(sortedCent),1):
+                if centroids[i,1] < sortedCent[j]:
+                    sortedCent.insert(j, centroids[i,1])
+                    ult = i
+                    break
+            if ult!=i:
+                sortedCent.append(centroids[i,1])
+        else:
+            sortedCent.append(centroids[i,1])
+            ult = i
+
+    #Add coordinates to corresponding cluster
+    intersections= []
+    last = 0
+    for i in range(1,len(sortedCent),1):
+        middle =((sortedCent[i]-sortedCent[i-1])/2.0 )+sortedCent[i-1]
+        intersections.append(middle)
+
+    print "INTEREECTIONs" + str(intersections)
+
+    clusters = []
+    for coord in coords:
+        print "COORD TO INSERT: "+ str(coord)
+       
+        for i in range(0,len(intersections),1):
+                
+            if i==0:
+                anterior =0
+            else:
+                anterior =intersections[i-1]
+            
+            if coord[0]<intersections[i] and coord[1]<intersections[i] and coord[0]>anterior and coord[1]>anterior:
+                #clusters['i'].append(coord)
+                if clusters is None or len(clusters)==0:
+                    cl = {'deps':[coord]}
+                    clusters.append(cl)
+                else:
+                    clusters[i]['deps'].append(coord)
+                break
+                        
+            if i==len(intersections)-1 and coord[0]>intersections[i] and coord[1]>intersections[i]:
+                if clusters[i+1] is None:
+                    cl = {'deps':[coord]}
+                    clusters.append(cl)
+                else:
+                    clusters[i+1]['deps'].append(coord)
+                break
+
+            #ELEMENTS OUTSIDE DIAGONAL CLUSTERS
+            elif i==len(intersections)-1:
+                print len(clusters)
+                if len(clusters)<=i+2:
+                    cl = {'deps':[coord]}
+                    clusters.append(cl)
+                else:
+                    clusters[i+2]['deps'].append(coord)
+                break
+                        
+                        
+                    
+    print "$$$$$"
+    print clusters
+    print "$$$$$"
+
+
 
     plot(data[idx==0,0],data[idx==0,1],'ob',
     data[idx==1,0],data[idx==1,1],'or',
@@ -199,7 +269,8 @@ def calculateClusteringCost(dsm):
 
 
 
-    clusters = []
+
+
     '''
     for i in range(0, len(data[idx==0,0]), 1):
         #clusters += [[data[0],data[1]]]
@@ -237,6 +308,12 @@ def calculateClusteringCost(dsm):
 # clusters["cost"] = current_cost
 # clusters["new_cost"] = new_bid_cost
 # clusters["deps"] = [[dep1],[dep2],...,[depN]
+
+def getFromDict(dataDict, mapList):
+    return reduce(lambda d, k: d[k], mapList, dataDict)
+
+def setInDict(dataDict, mapList, value):
+    getFromDict(dataDict, mapList[:-1])[mapList[-1]] = value
 
 def stat(lst):
     """Calculate mean and std deviation from the input list."""
