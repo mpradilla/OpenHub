@@ -31,7 +31,7 @@ def run_test(id, path, repo_db):
     
     dsmStructure = convertDSMTextTomatrix(matrix)
     #prop_cost = calculatePropagationCost(dsmStructure)
-    clus_cost = calculateClusteringCost(dsmStructure)
+    #clus_cost = calculateClusteringCost(dsmStructure)
     
     
     #Compress DSM before saving
@@ -114,6 +114,7 @@ def decompressDSMMatrix(matrix):
 
 
 if __name__ == '__main__':
-    run_test(None, '/Users/dasein/Documents/TESIS/scribe-java-master', None)
+    run_test(None, '/Users/dasein/Documents/TESIS/test/hbase-0d4fb57590d54c7f4b1b85fe8ec6138d55851f11', None)
+    #run_test(None, '/Users/dasein/Documents/TESIS/scribe-java-master', None)
     #run_test(None, '/Users/dasein/Documents/TESIS/dtangler-master', None)
     #run_test(None, os.path.dirname(__file__), None)
