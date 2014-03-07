@@ -9,7 +9,7 @@ def load_data():
     with open('data/reposSecondCompleted.json') as f:
         for line in f:
             data.append(json.loads(line))
-            if count > 1000000000:
+            if count > 1000:
                 break
             else:
                 count+=1
@@ -27,6 +27,7 @@ def getTotalProcessingTimeSize(data):
     time=0
     size=0
     for line in data:
+    
     
         try:
             num = float(line["modularity"]["dsm"]["dsm_process_time"])
@@ -48,6 +49,8 @@ def getTotalProcessingTimeSize(data):
                 for dep in deps:
                 #print dep + " - usedBy: "+str(line["name"])
                     insertDependencyUse(dep,line["name"])
+                    if dep=="slf4j-api":
+                        print line
             #print deps[0]
             #jdata = json.load(deps)
             #print jdata[0]
@@ -74,6 +77,9 @@ def getTotalProcessingTimeSize(data):
     print "Total Size of project analyzed: " + str(size)
     print "Averga size of project's: "+ str(size/len(data))
     print "The 100 project's more reusable in order are: " + str(getNDictionayItemsByListNumber(usesDict,100))
+
+
+    print ""
 
 def insertDependencyUse(projectUsed, usedBy):
 

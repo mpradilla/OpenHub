@@ -49,6 +49,9 @@ def main():
     db.authenticate(MONGO_USER, MONGO_PWD)
     collection = db[MONGO_COLL]
 
+    collectionVersions = db[MONGO_COLL_VERSION]
+    collectionBlacklist = db[MONGO_COLL_BLACKLIST]
+
     # Necesary logging
     logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.CRITICAL)
 
@@ -74,19 +77,124 @@ def main():
     channel.start_consuming()
 
 
-def down_repo(git_url, path):
+def down_repo(repo_id, git_url, path, name):
     """Download repo from specified url into path."""
 
     delete_repo(path)
     try:
         os.chdir(REPO_DOWNLOAD_DIR)
+        
+        #Link to get all commits SHA's where the pom.xml file was modified
+        #https://api.github.com/repositories/160985/commits?path=pom.xml&per_page=100
+        
+        r = requests.get("https://api.github.com/repositories/"+repo_id+"/commits?path=pom.xml")
+        json_data = json.loads(r.text)
+        
+        print "Repos ID: " +repo_id
+        
+        if json_data:
+        
+            shas = [commit['sha'] for commit in json_data]
+            
+            evolution ={}
+            version= {}
+            last_deps = None
+            stables = 0
+            analyze = False
+            for commit in json_data:
+                version['sha']=commit['sha']
+                version['date']=commit['commit']['author']['date']
+                version['git_url']=git_url
+                
+                #download specific version of the project
+                #https://github.com/apache/hbase/archive/18326945939ce48f8b567482dc3ae732d02debca.zip
+                downUrl= git_url+'/archive/'+commit['sha']+'.zip'
+                
+                print "SHAs for repo: "+ SHAs
+                print "SHAs number: "+ len(shas)
+    
+                #Download specific pom.xml
+                #https://raw.github.com/apache/hbase/5722bd679c0416483ab752a3e327f26a4ef8f18d/pom.xml
+                
+                analyze = False
+                r = requests.get("https://raw.github.com/"+name+"/"+commit['sha']+"/pom.xml")
+                
+                mappings = getMappings(root+"/pom.xml")
+                print mappings
+                    if len(mappings)!=0:
+                        version['dependencies']['use'] = mappings
+                        if last_deps is None:
+                            version['dependencies']['compare_to'] = 1
+                            analyze= True
+                            downUrl= git_url+'/archive/master.zip'
+                        else:
+                            removed, new = compareCommits(last_deps,mappings)
+                            version['dependencies']['new'] = new
+                            version['dependencies']['removed'] = removed
+                    
+                            if len(removed)>0 or len(new)>0 or stables>5:
+                                print "CHANGE IN POM DEPENDENCIES!!!     num removed: " + str(len(removed)) + "  num new: "+str(len(new))
+                                analyze= True
+                                stables=0
+                            else:
+                                stables+=1
+        
+                            last_deps = mappings
+                #Delete pom.xml file
+                delete_repo(path)
+    
+                if analyze:
+                    print "Downloading code..."
+                    r = requests.get(downUrl)
+                    z = zipfile.ZipFile(StringIO.StringIO(r.content))
+                    z.extractall()
+    
+                    #repo_json = collectionVersions.db.collection.find({"sha":version['sha']}, {"sha": 1}).limit(1)
+    
+                    for d in dirs:
+                        print "Analyzing %s..." % d
+                        tests = [p.replace('/', '.') for p in glob.glob("%s/*" % d) if os.path.isdir(p)]  # Test list in the directory
+                    
+                    print "Current tests for %s: %s" % (d, tests)
+                    # repo_json[d] = []
+                    repo_json[d] = {}
+                    
+                    for test in tests:
+                        m = importlib.import_module(test + ".main")
+                        test_name = test.split('.')[1]
+                        try:
+                            with time_limit(3600):
+                                res = m.run_test(repo_id, path, version)
+                                version[d][test_name] = res
+                    
+                                #evolution
+                                evolution[test_name].append(res['time_cost'])
+                                if test_name == "propagation_cost":
+                                    evolution['dates'].append(version['date'])
+                                    print "EVOLUTION RECORD: "+ evolution['dates']
+                    
+                        except Exception as e:
+                            print 'Test error: %s %s' % (test, str(e))
+                            # data = {'name': test_name, 'value': "Error:" + str(e)}
+                            version[d][test_name] = {'error': "Error:" + str(e), 'stack_trace': traceback.format_exc()}
+                            completed = False
+                            pass
+                                
+                    version['analyzed_at'] = datetime.datetime.now()
+                    version['state'] = 'completed' if completed else 'pending'
+                    print "Saving results to databse..."
+                    collectionVersions.update({"sha": version['sha']}, repo_json)
+                        
+            return evolution
 
-        print "Downloading code..."
+        else:
+            print "NO POM.XML"
+            return None
         # print git.Git().clone(git_url)
         # subprocess.call(['git', 'clone', git_url], close_fds=True)
-        r = requests.get(git_url)
-        z = zipfile.ZipFile(StringIO.StringIO(r.content))
-        z.extractall()
+        #r = requests.get(git_url)
+        #z = zipfile.ZipFile(StringIO.StringIO(r.content))
+        #z.extractall()
 
         os.chdir(BASE_DIR)
         print "Done"
@@ -95,6 +203,61 @@ def down_repo(git_url, path):
     finally:
         os.chdir(BASE_DIR)
 
+
+def compareCommits(oldDeps, newDeps):
+
+    new = {}
+    removed = {}
+    
+    if len(newDeps) > len(oldDeps) or len(newDeps) == len(oldDeps):
+        for depKey in newDeps:
+            if depKey not in oldDeps:
+                new[depKey]=newDeps[depKey]
+
+    if len(newDeps) < len(oldDeps):
+        for depKey in oldDeps:
+            if depKey not in newDeps:
+                removed[depKey]=oldDeps[depKey]
+
+
+    return removed,new
+
+######################################################################################################
+##### METTHODS FOR POM.XML DEPENDENCIES EXTRACTION
+######################################################################################################
+
+#Auxiliar method to analyze the pom.xml file
+def getMappingsNode(node, nodeName):
+    if node.findall('*'):
+        for n in node.findall('*'):
+            if nodeName in n.tag:
+                return n
+        else:
+            return getMappingsNode(n, nodeName)
+#Method to extract the dependencies and put ir all togther in a python dictionary #structure
+def getMappings(rootNode):
+    mappingsNode = getMappingsNode(rootNode, 'dependencies')
+    mapping = {}
+    
+    for prop in mappingsNode.findall('*'):
+        key = ''
+        val = ''
+        
+        for child in prop.findall('*'):
+            if 'artifactId' in child.tag:
+                key = child.text
+            
+            if 'version' in child.tag:
+                val = child.text
+        
+        if val and key:
+            mapping[key] = val
+    
+    return mapping
+
+######################################################################################################
+##### METTHODS FOR POM.XML DEPENDENCIES EXTRACTION
+######################################################################################################
 
 def delete_repo(path):
     """Delete repo from path."""
@@ -128,35 +291,18 @@ def callback(ch, method, properties, body):
     try:
         repo_json = collection.find_one({"_id": repo_id})
         # down_repo(git_url, path)
-        down_repo(repo_json['html_url'] + '/archive/master.zip', path)
+        #down_repo(repo_id, repo_json['html_url'] + '/archive/master.zip', path , repo_json['full_name'])
+        evolution = down_repo(repo_id, repo_json['html_url'], path , repo_json['full_name'])
         completed = True
-
-        for d in dirs:
-            print "Analyzing %s..." % d
-            tests = [p.replace('/', '.') for p in glob.glob("%s/*" % d) if os.path.isdir(p)]  # Test list in the directory
-
-            print "Current tests for %s: %s" % (d, tests)
-            # repo_json[d] = []
-            repo_json[d] = {}
-
-            for test in tests:
-                m = importlib.import_module(test + ".main")
-                test_name = test.split('.')[1]
-                try:
-                    with time_limit(240):
-                        res = m.run_test(repo_id, path, repo_json)
-                        # data = {'name': test_name, 'value': res}
-                        # repo_json[d].append(data)
-                        repo_json[d][test_name] = res
-                except Exception as e:
-                    print 'Test error: %s %s' % (test, str(e))
-                    # data = {'name': test_name, 'value': "Error:" + str(e)}
-                    repo_json[d][test_name] = {'error': "Error:" + str(e), 'stack_trace': traceback.format_exc()}
-                    completed = False
-                    pass
+        
+        if evolution is None:
+            collectionBlacklist.insert({"_id": repo_id})
+        
+        
+        repo_json['evolution'] = evolution
 
         repo_json['analyzed_at'] = datetime.datetime.now()
-        repo_json['state'] = 'completed' if completed else 'pending'
+        repo_json['state'] = 'completedV2' if completed elif None 'NO_POM' else 'pending'
         print "Saving results to databse..."
         collection.update({"_id": repo_id}, repo_json)
 

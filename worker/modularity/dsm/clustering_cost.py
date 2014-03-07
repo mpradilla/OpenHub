@@ -170,7 +170,7 @@ def calculateClusteringCost(dsm):
     
 # now with K = 3 (3 clusters)
     num = round(int(getDsmSize())*float(getAlpha()/100))
-    centroids,_ = kmeans(data,5)
+    centroids,_ = kmeans(data,3)
     idx,_ = vq(data,centroids)
 
     ''''
@@ -350,7 +350,7 @@ def calculateTotalClustersCost():
         clusterSize = getClusterSize(cluster)
         clusterSize = int(clusterSize)
         clusterCost = 0
-        for dep in cluster:
+        for dep in cluster['deps']:
             i = dep[0]
             j = dep[1]
             depCost = 0
@@ -362,7 +362,7 @@ def calculateTotalClustersCost():
             elif i!=j:
                 #check if they are in the same cluster
                 #print "same cl: "+str(dep) + " cluster: "+str(cluster)
-                if isInList(dep,cluster):
+                if isInList(dep,cluster['deps']):
                     #print "SAME CLUSTER"
                     lamd = float(getLamda())
                     depCost =clusterSize**lamd
@@ -380,14 +380,14 @@ def calculateTotalClustersCost():
 #GET size of cluster
 def getClusterSize(cluster):
     
-    if len(cluster)==1:
+    if len(cluster['deps'])==1:
         return 1
 
     maxI = 0.0
     maxJ = 0.0
-    for dep in cluster:
-        i = cluster[0]
-        j = cluster[1]
+    for dep in cluster['deps']:
+        i = dep[0]
+        j = dep[1]
         if i>maxI:
             maxI=i
         elif j>maxJ:
