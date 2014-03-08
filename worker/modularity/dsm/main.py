@@ -11,6 +11,7 @@ import commands
 import zlib
 from propagation_cost import calculatePropagationCost
 from clustering_cost import calculateClusteringCost
+from os.path import relpath
 
 #===============================================================================
 # Extract Project DSM with Dtangler https://support.requeste.com/dtangler/index.php
@@ -19,6 +20,20 @@ def run_test(id, path, repo_db):
     
     start_time = time.time()
     print path
+    response = {}
+    
+    #COMPILE THE PROJECT!!
+    print path
+    
+    os.chdir(path)
+    p = subprocess.Popen(["mvn", "package",  "-DskipTests=true"], stdout=subprocess.PIPE)
+    out, err = p.communicate()
+    
+    response["project_build_time"] = time.time() - start_time
+    start_time = time.time()
+    
+    print out
+    os.chdir('/Users/dasein/OpenHub/worker/modularity/dsm')
     p = subprocess.Popen(["java", "-Xmx4G", "-jar", "dtangler-core.jar","-input=/"+path], stdout=subprocess.PIPE)
     out, err = p.communicate()
     response = {}
@@ -29,10 +44,17 @@ def run_test(id, path, repo_db):
     matrix = "|"+matrix+"|"
     #print matrix
     
+    s_time = time.time()
     dsmStructure = convertDSMTextTomatrix(matrix)
-    #prop_cost = calculatePropagationCost(dsmStructure)
-    #clus_cost = calculateClusteringCost(dsmStructure)
+    response["dsm_packages_convert_time"] = time.time() - s_time
     
+    prop_cost = calculatePropagationCost(dsmStructure)
+    response["dsm_packages_propagation_cost"] = prop_cost
+
+    clus_cost = calculateClusteringCost(dsmStructure)
+    response["dsm_packages_clustering_cost"] = clus_cost
+    
+    response["dsm_packages_size"] = len(dsmStructure)
     
     #Compress DSM before saving
     matrix = compressDSMMatrix(matrix)
@@ -41,17 +63,26 @@ def run_test(id, path, repo_db):
     # CLASS DSM
     p = subprocess.Popen(["java","-Xmx6G", "-jar", "dtangler-core.jar","-input=/"+path,"-scope=classes"], stdout=subprocess.PIPE)
     out, err = p.communicate()
-    response = {}
+    
     #print matrix
     print "Calculating DSM for classes..."
     matrix = out.split('|', 1 )[1]
     matrix = matrix.rsplit('|',1)[0]
     matrix = "|"+matrix+"|"
     
-   
+
+    s_time = time.time()
     dsmStructure = convertDSMTextTomatrix(matrix)
+    response["dsm_classes_convert_time"] = time.time() - s_time
+
+    prop_cost = calculatePropagationCost(dsmStructure)
+    response["dsm_classes_propagation_cost"] = prop_cost
+   
     clus_cost = calculateClusteringCost(dsmStructure)
+    response["dsm_classes_clustering_cost"] = clus_cost
     
+    response["dsm_classes_size"] = len(dsmStructure)
+
     #Compress DSM before saving
     matrix = compressDSMMatrix(matrix)
     

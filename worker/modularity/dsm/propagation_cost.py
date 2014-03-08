@@ -56,12 +56,13 @@ def calculatePropagationCost(dsm):
     down = down*down
     cost = float(totalSum/down)
     print "FAN-OUT-VISIBILITY: " + str(cost)
-    print "TIME NEEDED" + str(time.time()-start_time)
+    print "TIME NEEDED: " + str(time.time()-start_time)
     print "::::::::::::::::::::::::::::::"
 
     response ={}
     response["value"]= cost
     response["time"]= time.time() - start_time
+    response["version"] = 1.0
     return response
 
 

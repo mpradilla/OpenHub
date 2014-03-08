@@ -169,7 +169,7 @@ def down_repo(repo_id, git_url, path, name):
                     
                                 #evolution
                                 evolution[test_name].append(res['time_cost'])
-                                if test_name == "propagation_cost":
+                                if test_name == "dsm":
                                     evolution['dates'].append(version['date'])
                                     print "EVOLUTION RECORD: "+ evolution['dates']
                     
@@ -183,8 +183,10 @@ def down_repo(repo_id, git_url, path, name):
                     version['analyzed_at'] = datetime.datetime.now()
                     version['state'] = 'completed' if completed else 'pending'
                     print "Saving results to databse..."
-                    collectionVersions.update({"sha": version['sha']}, repo_json)
+                    collectionVersions.update({"sha": version['sha']}, version)
+                    delete_repo(path)    
                         
+            
             return evolution
 
         else:
