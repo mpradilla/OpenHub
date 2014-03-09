@@ -94,7 +94,7 @@ def down_repo(repo_id, git_url, path, name):
         r = requests.get("https://api.github.com/repositories/"+repo_id+"/commits?path=pom.xml")
         json_data = json.loads(r.text)
         
-        print "Repos ID: " +repo_id
+        print "Repos ID: " + str(repo_id)
         
         if json_data:
         
@@ -114,8 +114,8 @@ def down_repo(repo_id, git_url, path, name):
                 #https://github.com/apache/hbase/archive/18326945939ce48f8b567482dc3ae732d02debca.zip
                 downUrl= git_url+'/archive/'+commit['sha']+'.zip'
                 
-                print "SHAs for repo: "+ shas
-                print "SHAs number: "+ len(shas)
+                print "SHAs for repo: "+ str(shas)
+                print "SHAs number: "+ str(len(shas))
     
                 #Download specific pom.xml
                 #https://raw.github.com/apache/hbase/5722bd679c0416483ab752a3e327f26a4ef8f18d/pom.xml
@@ -175,7 +175,7 @@ def down_repo(repo_id, git_url, path, name):
                                 #evolution[test_name].append(res['time_cost'])
                                 if test_name == "dsm":
                                     evolution['dates'].append(version['date'])
-                                    print "EVOLUTION RECORD: "+ evolution['dates']
+                                    print "EVOLUTION RECORD: "+ str(evolution['dates'])
                     
                         except Exception as e:
                             print 'Test error: %s %s' % (test, str(e))
