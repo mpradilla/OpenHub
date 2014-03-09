@@ -125,7 +125,20 @@ def down_repo(repo_id, git_url, path, name):
                 analyze = False
                 r = requests.get("https://raw.github.com/"+str(name)+"/"+str(commit['sha'])+"/pom.xml")
                 
-                mappings = getMappings(root+"/pom.xml")
+                mappings = None
+                try :
+                    for root, subFolders, files in os.walk(path):
+                        for f in files:
+                            if 'POM.XML' in f.upper():
+                                pomFile = xml.parse(os.path.join(root, f))
+                                root = pomFile.getroot()
+                                mappings = getMappings(root)
+                except:
+                    print "POM_NOT_FOUND"
+                    PrintException()
+
+                
+                #mappings = getMappings("/pom.xml")
                 print mappings
                 if len(mappings)!=0:
                     version['dependencies']['use'] = mappings
