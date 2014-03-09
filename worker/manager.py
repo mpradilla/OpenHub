@@ -121,25 +121,25 @@ def down_repo(repo_id, git_url, path, name):
                 
                 mappings = getMappings(root+"/pom.xml")
                 print mappings
-                    if len(mappings)!=0:
-                        version['dependencies']['use'] = mappings
-                        if last_deps is None:
-                            version['dependencies']['compare_to'] = 1
-                            analyze= True
-                            downUrl= git_url+'/archive/master.zip'
-                        else:
-                            removed, new = compareCommits(last_deps,mappings)
-                            version['dependencies']['new'] = new
-                            version['dependencies']['removed'] = removed
+                if len(mappings)!=0:
+                    version['dependencies']['use'] = mappings
+                    if last_deps is None:
+                        version['dependencies']['compare_to'] = 1
+                        analyze= True
+                        downUrl= git_url+'/archive/master.zip'
+                    else:
+                        removed, new = compareCommits(last_deps,mappings)
+                        version['dependencies']['new'] = new
+                        version['dependencies']['removed'] = removed
                     
-                            if len(removed)>0 or len(new)>0 or stables>5:
-                                print "CHANGE IN POM DEPENDENCIES!!!     num removed: " + str(len(removed)) + "  num new: "+str(len(new))
-                                analyze= True
-                                stables=0
-                            else:
-                                stables+=1
+                        if len(removed)>0 or len(new)>0 or stables>5:
+                            print "CHANGE IN POM DEPENDENCIES!!!     num removed: " + str(len(removed)) + "  num new: "+str(len(new))
+                            analyze= True
+                            stables=0
+                        else:
+                            stables+=1
         
-                            last_deps = mappings
+                        last_deps = mappings
                 #Delete pom.xml file
                 delete_repo(path)
     
@@ -304,7 +304,14 @@ def callback(ch, method, properties, body):
         repo_json['evolution'] = evolution
 
         repo_json['analyzed_at'] = datetime.datetime.now()
-        repo_json['state'] = 'completedV2' if completed elif None 'NO_POM' else 'pending'
+        
+        if evolution:
+            repo_json['state'] = 'completedV2'
+        elif completed is None:
+            repo_json['state'] = 'NO_POM'
+        else:
+            repo_json['state'] = 'pending'
+
         print "Saving results to databse..."
         collection.update({"_id": repo_id}, repo_json)
 
