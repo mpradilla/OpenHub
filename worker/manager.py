@@ -110,7 +110,7 @@ def down_repo(repo_id, git_url, path, name):
                 #https://github.com/apache/hbase/archive/18326945939ce48f8b567482dc3ae732d02debca.zip
                 downUrl= git_url+'/archive/'+commit['sha']+'.zip'
                 
-                print "SHAs for repo: "+ SHAs
+                print "SHAs for repo: "+ shas
                 print "SHAs number: "+ len(shas)
     
                 #Download specific pom.xml
@@ -168,7 +168,7 @@ def down_repo(repo_id, git_url, path, name):
                                 version[d][test_name] = res
                     
                                 #evolution
-                                evolution[test_name].append(res['time_cost'])
+                                #evolution[test_name].append(res['time_cost'])
                                 if test_name == "dsm":
                                     evolution['dates'].append(version['date'])
                                     print "EVOLUTION RECORD: "+ evolution['dates']
