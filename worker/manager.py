@@ -15,6 +15,8 @@ import signal
 from openhub_exceptions import TimeoutException
 from pymongo import MongoClient
 from contextlib import contextmanager
+import linecache
+import sys
 
 
 DATA_PATH = '../data'
@@ -33,13 +35,14 @@ MONGO_USER = ''
 MONGO_PWD = ''
 MONGO_DB = ''
 MONGO_COLL = ''
-MONGO_COLL_VERSION = ''
-MONGO_COLL_BLACKLIST = ''
+MONGO_COLL_VERSION = 'versions'
+MONGO_COLL_BLACKLIST = 'blacklist'
 
 dirs = []
 collection = ''
 collectionVersions =''
 collectionBlacklist = ''
+evolution = []
 
 
 def main():
@@ -100,7 +103,6 @@ def down_repo(repo_id, git_url, path, name):
         
             shas = [commit['sha'] for commit in json_data]
             
-            evolution ={}
             version= {}
             last_deps = None
             stables = 0
@@ -174,8 +176,8 @@ def down_repo(repo_id, git_url, path, name):
                                 #evolution
                                 #evolution[test_name].append(res['time_cost'])
                                 if test_name == "dsm":
-                                    evolution['dates'].append(version['date'])
-                                    print "EVOLUTION RECORD: "+ str(evolution['dates'])
+                                    evolution.append(version['date'])
+                                    print "EVOLUTION RECORD: "+ str(evolution)
                     
                         except Exception as e:
                             print 'Test error: %s %s' % (test, str(e))
@@ -205,6 +207,7 @@ def down_repo(repo_id, git_url, path, name):
         os.chdir(BASE_DIR)
         print "Done"
     except:
+        printException()
         raise
     finally:
         os.chdir(BASE_DIR)
@@ -298,7 +301,7 @@ def callback(ch, method, properties, body):
         repo_json = collection.find_one({"_id": repo_id})
         # down_repo(git_url, path)
         #down_repo(repo_id, repo_json['html_url'] + '/archive/master.zip', path , repo_json['full_name'])
-        evolution = down_repo(repo_id, repo_json['html_url'], path , repo_json['full_name'])
+        down_repo(repo_id, repo_json['html_url'], path , repo_json['full_name'])
         completed = True
         
         if evolution is None:
@@ -328,6 +331,8 @@ def callback(ch, method, properties, body):
 
     except Exception as e:
         print "General error:", str(e)
+        
+        printException()
 
         collection.update({"_id": repo_id}, {'$set': {'state': 'failed', 'analyzed_at': datetime.datetime.now(), 'error': 'General error:' + str(e), 'stack_trace': traceback.format_exc()}})
         print "Updated repo with failed status"
@@ -375,6 +380,14 @@ def load_config():
     MONGO_COLL_BLACKLIST = data['MONGO_COLL_BLACKLIST']
     mongo_cfg.close()
 
+def PrintException():
+    exc_type, exc_obj, tb = sys.exc_info()
+    f = tb.tb_frame
+    lineno = tb.tb_lineno
+    filename = f.f_code.co_filename
+    linecache.checkcache(filename)
+    line = linecache.getline(filename, lineno, f.f_globals)
+    print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj)
 
 if __name__ == '__main__':
     main()
