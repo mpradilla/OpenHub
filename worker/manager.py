@@ -17,7 +17,8 @@ from pymongo import MongoClient
 from contextlib import contextmanager
 import linecache
 import sys
-
+from xml.ElementTree import ElementTree
+import github3
 
 DATA_PATH = '../data'
 BASE_DIR = ''
@@ -38,6 +39,9 @@ MONGO_COLL = ''
 MONGO_COLL_VERSION = 'versions'
 MONGO_COLL_BLACKLIST = 'blacklist'
 
+GH_USERS = []
+GH_CUR_USR = 0
+
 dirs = []
 collection = ''
 collectionVersions =''
@@ -47,6 +51,8 @@ evolution = []
 
 def main():
     global collection
+    global collectionVersions
+    global collectionBlacklist
 
     load_config()
 
@@ -94,30 +100,44 @@ def down_repo(repo_id, git_url, path, name):
         #Link to get all commits SHA's where the pom.xml file was modified
         #https://api.github.com/repositories/160985/commits?path=pom.xml&per_page=100
         
+        reauth = True
+        gh = None
+        
         r = requests.get("https://api.github.com/repositories/"+str(repo_id)+"/commits?path=pom.xml")
         json_data = json.loads(r.text)
         
-        print "Repos ID: " + str(repo_id)
+        if json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
+            print "limit API exceded"
+            GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
+            gh = github3.login(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd'])
+            r = requests.get("https://api.github.com/repositories/"+str(repo_id)+"/commits?path=pom.xml")
+            json_data = json.loads(r.text)
         
+        print "Repos ID: " + str(repo_id)
+        print json_data
         if json_data:
         
-            shas = [commit['sha'] for commit in json_data]
+            #shas = [commit['sha'] for commit in json_data]
+            #shas = []
+            #for commit in json_data:
+            #    shas.append(str(commit['sha']))
             
-            version= {}
+            version= { "date":"", "git_url":"", "dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}}}
             last_deps = None
             stables = 0
             analyze = False
             for commit in json_data:
+                
                 version['sha']=commit['sha']
                 version['date']=commit['commit']['author']['date']
                 version['git_url']=git_url
                 
                 #download specific version of the project
                 #https://github.com/apache/hbase/archive/18326945939ce48f8b567482dc3ae732d02debca.zip
-                downUrl= git_url+'/archive/'+commit['sha']+'.zip'
+                downUrl= str(git_url)+'/archive/'+str(commit['sha'])+'.zip'
                 
-                print "SHAs for repo: "+ str(shas)
-                print "SHAs number: "+ str(len(shas))
+                #print "SHAs for repo: "+ str(shas)
+                #print "SHAs number: "+ str(len(shas))
     
                 #Download specific pom.xml
                 #https://raw.github.com/apache/hbase/5722bd679c0416483ab752a3e327f26a4ef8f18d/pom.xml
@@ -125,31 +145,28 @@ def down_repo(repo_id, git_url, path, name):
                 analyze = False
                 r = requests.get("https://raw.github.com/"+str(name)+"/"+str(commit['sha'])+"/pom.xml")
                 
-                mappings = None
-                try :
-                    for root, subFolders, files in os.walk(path):
-                        for f in files:
-                            if 'POM.XML' in f.upper():
-                                pomFile = xml.parse(os.path.join(root, f))
-                                root = pomFile.getroot()
-                                mappings = getMappings(root)
-                except:
-                    print "POM_NOT_FOUND"
-                    PrintException()
-
-                
-                #mappings = getMappings("/pom.xml")
+                if json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
+                    print "limit API exceded"
+                    GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
+                    gh = github3.login(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd'])
+                    r = requests.get("https://raw.github.com/"+str(name)+"/"+str(commit['sha'])+"/pom.xml")
+            
+                tree = ElementTree.fromstring(r.content)
+                mappings = getMappings(tree)
+            
                 print mappings
                 if len(mappings)!=0:
-                    version['dependencies']['use'] = mappings
+                    version['dependencies']['use'][0] = mappings
                     if last_deps is None:
                         version['dependencies']['compare_to'] = 1
                         analyze= True
                         downUrl= git_url+'/archive/master.zip'
+                        print "Downloading master form project"
                     else:
+                        print "Comparing Commits"
                         removed, new = compareCommits(last_deps,mappings)
-                        version['dependencies']['new'] = new
-                        version['dependencies']['removed'] = removed
+                        version['dependencies']['new'][0] = new
+                        version['dependencies']['removed'][0] = removed
                     
                         if len(removed)>0 or len(new)>0 or stables>5:
                             print "CHANGE IN POM DEPENDENCIES!!!     num removed: " + str(len(removed)) + "  num new: "+str(len(new))
@@ -165,6 +182,11 @@ def down_repo(repo_id, git_url, path, name):
                 if analyze:
                     print "Downloading code..."
                     r = requests.get(downUrl)
+                    if json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
+                        GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
+                        gh = github3.login(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd'])
+                        r = requests.get(downUrl)
+                    
                     z = zipfile.ZipFile(StringIO.StringIO(r.content))
                     z.extractall()
     
@@ -176,8 +198,8 @@ def down_repo(repo_id, git_url, path, name):
                     
                     print "Current tests for %s: %s" % (d, tests)
                     # repo_json[d] = []
-                    repo_json[d] = {}
-                    
+                    #repo_json[d] = {}
+                    completed = True
                     for test in tests:
                         m = importlib.import_module(test + ".main")
                         test_name = test.split('.')[1]
@@ -191,7 +213,7 @@ def down_repo(repo_id, git_url, path, name):
                                 if test_name == "dsm":
                                     evolution.append(version['date'])
                                     print "EVOLUTION RECORD: "+ str(evolution)
-                    
+                            completed = True
                         except Exception as e:
                             print 'Test error: %s %s' % (test, str(e))
                             # data = {'name': test_name, 'value': "Error:" + str(e)}
@@ -360,7 +382,7 @@ def callback(ch, method, properties, body):
 
 
 def load_config():
-    global BASE_DIR, REPO_DOWNLOAD_DIR, RABBIT_HOST, RABBIT_USER, RABBIT_PWD, RABBIT_KEY, RABBIT_QUEUE, MONGO_PWD, MONGO_USER, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLL, dirs
+    global BASE_DIR, REPO_DOWNLOAD_DIR, RABBIT_HOST, RABBIT_USER, RABBIT_PWD, RABBIT_KEY, RABBIT_QUEUE, GH_USERS, MONGO_PWD, MONGO_USER, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLL, MONGO_COLL_VERSION, MONGO_COLL_BLACKLIST, dirs
 
     paths_cfg = open(DATA_PATH + "/paths.json")
     data = json.load(paths_cfg)
@@ -380,6 +402,10 @@ def load_config():
     d = open(DATA_PATH + "/analyzers.json")
     dirs = set(json.load(d))
     d.close()
+    
+    gh_cfg = open(DATA_PATH + "/gh.json")
+    GH_USERS = json.load(gh_cfg)
+    gh_cfg.close()
 
     mongo_cfg = open(DATA_PATH + "/mongo.json")
     data = json.load(mongo_cfg)
