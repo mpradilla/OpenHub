@@ -38,6 +38,8 @@ MONGO_COLL_BLACKLIST = ''
 
 dirs = []
 collection = ''
+collectionVersions =''
+collectionBlacklist = ''
 
 
 def main():
