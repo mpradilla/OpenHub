@@ -367,6 +367,8 @@ def load_config():
     MONGO_PORT = int(data['MONGO_PORT'])
     MONGO_DB = data['MONGO_DB']
     MONGO_COLL = data['MONGO_COLL']
+    MONGO_COLL_VERSION = data['MONGO_COLL_VERSION']
+    MONGO_COLL_BLACKLIST = data['MONGO_COLL_BLACKLIST']
     mongo_cfg.close()
 
 
