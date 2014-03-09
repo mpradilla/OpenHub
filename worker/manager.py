@@ -33,6 +33,8 @@ MONGO_USER = ''
 MONGO_PWD = ''
 MONGO_DB = ''
 MONGO_COLL = ''
+MONGO_COLL_VERSION = ''
+MONGO_COLL_BLACKLIST = ''
 
 dirs = []
 collection = ''
