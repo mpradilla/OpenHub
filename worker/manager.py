@@ -94,7 +94,7 @@ def down_repo(repo_id, git_url, path, name):
         #Link to get all commits SHA's where the pom.xml file was modified
         #https://api.github.com/repositories/160985/commits?path=pom.xml&per_page=100
         
-        r = requests.get("https://api.github.com/repositories/"+repo_id+"/commits?path=pom.xml")
+        r = requests.get("https://api.github.com/repositories/"+str(repo_id)+"/commits?path=pom.xml")
         json_data = json.loads(r.text)
         
         print "Repos ID: " + str(repo_id)
@@ -123,7 +123,7 @@ def down_repo(repo_id, git_url, path, name):
                 #https://raw.github.com/apache/hbase/5722bd679c0416483ab752a3e327f26a4ef8f18d/pom.xml
                 
                 analyze = False
-                r = requests.get("https://raw.github.com/"+name+"/"+commit['sha']+"/pom.xml")
+                r = requests.get("https://raw.github.com/"+str(name)+"/"+str(commit['sha'])+"/pom.xml")
                 
                 mappings = getMappings(root+"/pom.xml")
                 print mappings
@@ -207,7 +207,7 @@ def down_repo(repo_id, git_url, path, name):
         os.chdir(BASE_DIR)
         print "Done"
     except:
-        printException()
+        PrintException()
         raise
     finally:
         os.chdir(BASE_DIR)
@@ -332,7 +332,7 @@ def callback(ch, method, properties, body):
     except Exception as e:
         print "General error:", str(e)
         
-        printException()
+        PrintException()
 
         collection.update({"_id": repo_id}, {'$set': {'state': 'failed', 'analyzed_at': datetime.datetime.now(), 'error': 'General error:' + str(e), 'stack_trace': traceback.format_exc()}})
         print "Updated repo with failed status"
