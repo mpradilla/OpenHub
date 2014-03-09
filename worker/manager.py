@@ -17,8 +17,10 @@ from pymongo import MongoClient
 from contextlib import contextmanager
 import linecache
 import sys
-from xml.ElementTree import ElementTree
+from xml.etree import ElementTree
 import github3
+import bson.objectId
+import pymongo
 
 DATA_PATH = '../data'
 BASE_DIR = ''
@@ -92,6 +94,7 @@ def main():
 
 def down_repo(repo_id, git_url, path, name):
     """Download repo from specified url into path."""
+    global GH_CUR_USR
 
     delete_repo(path)
     try:
@@ -103,14 +106,15 @@ def down_repo(repo_id, git_url, path, name):
         reauth = True
         gh = None
         
-        r = requests.get("https://api.github.com/repositories/"+str(repo_id)+"/commits?path=pom.xml")
+        r = requests.get("https://api.github.com/repositories/"+str(repo_id)+"/commits?path=pom.xml", auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
         json_data = json.loads(r.text)
         
-        if json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
+        if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
             print "limit API exceded"
             GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
-            gh = github3.login(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd'])
-            r = requests.get("https://api.github.com/repositories/"+str(repo_id)+"/commits?path=pom.xml")
+            #gh = github3.login(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd'])
+            return "LOGIN response" + str (gh)
+            r = requests.get("https://api.github.com/repositories/"+str(repo_id)+"/commits?path=pom.xml", auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
             json_data = json.loads(r.text)
         
         print "Repos ID: " + str(repo_id)
@@ -128,6 +132,9 @@ def down_repo(repo_id, git_url, path, name):
             analyze = False
             for commit in json_data:
                 
+                if 'sha' not in commit:
+                
+                
                 version['sha']=commit['sha']
                 version['date']=commit['commit']['author']['date']
                 version['git_url']=git_url
@@ -143,13 +150,13 @@ def down_repo(repo_id, git_url, path, name):
                 #https://raw.github.com/apache/hbase/5722bd679c0416483ab752a3e327f26a4ef8f18d/pom.xml
                 
                 analyze = False
-                r = requests.get("https://raw.github.com/"+str(name)+"/"+str(commit['sha'])+"/pom.xml")
+                r = requests.get("https://raw.github.com/"+str(name)+"/"+str(commit['sha'])+"/pom.xml", auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
                 
-                if json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
+                if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
                     print "limit API exceded"
                     GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
-                    gh = github3.login(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd'])
-                    r = requests.get("https://raw.github.com/"+str(name)+"/"+str(commit['sha'])+"/pom.xml")
+                    #gh = github3.login(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd'])
+                    r = requests.get("https://raw.github.com/"+str(name)+"/"+str(commit['sha'])+"/pom.xml", auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
             
                 tree = ElementTree.fromstring(r.content)
                 mappings = getMappings(tree)
@@ -181,11 +188,11 @@ def down_repo(repo_id, git_url, path, name):
     
                 if analyze:
                     print "Downloading code..."
-                    r = requests.get(downUrl)
-                    if json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
+                    r = requests.get(downUrl, auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
+                    if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
                         GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
-                        gh = github3.login(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd'])
-                        r = requests.get(downUrl)
+                        #gh = github3.login(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd'])
+                        r = requests.get(downUrl, auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
                     
                     z = zipfile.ZipFile(StringIO.StringIO(r.content))
                     z.extractall()
@@ -224,7 +231,7 @@ def down_repo(repo_id, git_url, path, name):
                     version['analyzed_at'] = datetime.datetime.now()
                     version['state'] = 'completed' if completed else 'pending'
                     print "Saving results to databse..."
-                    collectionVersions.update({"sha": version['sha']}, version)
+                    collectionVersions.update({"sha": ObjectId(str(version['sha']))}, {"$set":version})
                     delete_repo(path)    
                         
             
