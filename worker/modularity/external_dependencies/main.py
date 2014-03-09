@@ -24,7 +24,7 @@ def run_test(id, path, repo_db):
         print "POM_NOT_FOUND"
         return ""
 
-#Auxiliar method to analyze the pom.xml file
+#Auxiliar method to analyize the pom.xml file
 def getMappingsNode(node, nodeName):
     if node.findall('*'):
         for n in node.findall('*'):
