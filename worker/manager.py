@@ -38,22 +38,26 @@ MONGO_USER = ''
 MONGO_PWD = ''
 MONGO_DB = ''
 MONGO_COLL = ''
-MONGO_COLL_VERSION = 'versions'
+MONGO_COLL_VERSION = 'version'
 MONGO_COLL_BLACKLIST = 'blacklist'
+MONGO_COLL_REPO_VERSIONS = 'repoVersions'
+
 
 GH_USERS = []
 GH_CUR_USR = 0
 
 dirs = []
 collection = ''
-collectionVersions =''
+collectionVersion =''
+collectionRepoVersions =''
 collectionBlacklist = ''
 evolution = []
 
 
 def main():
     global collection
-    global collectionVersions
+    global collectionVersion
+    global collectionRepoVersions
     global collectionBlacklist
 
     load_config()
@@ -64,7 +68,8 @@ def main():
     db.authenticate(MONGO_USER, MONGO_PWD)
     collection = db[MONGO_COLL]
 
-    collectionVersions = db[MONGO_COLL_VERSION]
+    collectionVersion = db[MONGO_COLL_VERSION]
+    collectionRepoVersions = db[MONGO_COLL_REPO_VERSIONS]
     collectionBlacklist = db[MONGO_COLL_BLACKLIST]
 
     # Necesary logging
@@ -133,9 +138,9 @@ def down_repo(repo_id, git_url, path, name):
             for commit in json_data:
                 
                 if 'sha' not in commit:
+                    continue
                 
-                
-                version['sha']=commit['sha']
+                #version['sha']=commit['sha']
                 version['date']=commit['commit']['author']['date']
                 version['git_url']=git_url
                 
@@ -159,8 +164,13 @@ def down_repo(repo_id, git_url, path, name):
                     r = requests.get("https://raw.github.com/"+str(name)+"/"+str(commit['sha'])+"/pom.xml", auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
             
                 tree = ElementTree.fromstring(r.content)
-                mappings = getMappings(tree)
-            
+                try:
+                    mappings = getMappings(tree)
+
+                except:
+                    print "CANNOT GET DEPENDENCIES FROM POM"
+                    continue
+
                 print mappings
                 if len(mappings)!=0:
                     version['dependencies']['use'][0] = mappings
@@ -231,7 +241,11 @@ def down_repo(repo_id, git_url, path, name):
                     version['analyzed_at'] = datetime.datetime.now()
                     version['state'] = 'completed' if completed else 'pending'
                     print "Saving results to databse..."
-                    collectionVersions.update({"sha": ObjectId(str(version['sha']))}, {"$set":version})
+                    
+                    id = collectionVersion.insert(version)
+                    print "VERSION ID" + str(id)
+                    collectionRepoVersions.insert({"repo":repo_id, "version":id})
+                    
                     delete_repo(path)    
                         
             
@@ -389,7 +403,7 @@ def callback(ch, method, properties, body):
 
 
 def load_config():
-    global BASE_DIR, REPO_DOWNLOAD_DIR, RABBIT_HOST, RABBIT_USER, RABBIT_PWD, RABBIT_KEY, RABBIT_QUEUE, GH_USERS, MONGO_PWD, MONGO_USER, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLL, MONGO_COLL_VERSION, MONGO_COLL_BLACKLIST, dirs
+    global BASE_DIR, REPO_DOWNLOAD_DIR, RABBIT_HOST, RABBIT_USER, RABBIT_PWD, RABBIT_KEY, RABBIT_QUEUE, GH_USERS, MONGO_PWD, MONGO_USER, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLL, MONGO_COLL_VERSION, MONGO_COLL_REPO_VERSIONS, MONGO_COLL_BLACKLIST, dirs
 
     paths_cfg = open(DATA_PATH + "/paths.json")
     data = json.load(paths_cfg)
@@ -423,6 +437,7 @@ def load_config():
     MONGO_DB = data['MONGO_DB']
     MONGO_COLL = data['MONGO_COLL']
     MONGO_COLL_VERSION = data['MONGO_COLL_VERSION']
+    MONGO_COLL_REPO_VERSIONS = data['MONGO_COLL_REPO_VERSIONS']
     MONGO_COLL_BLACKLIST = data['MONGO_COLL_BLACKLIST']
     mongo_cfg.close()
 
