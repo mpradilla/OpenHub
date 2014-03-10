@@ -19,7 +19,7 @@ import linecache
 import sys
 from xml.etree import ElementTree
 import github3
-import bson.objectid import ObjectId
+from bson.objectid import ObjectId
 import pymongo
 
 DATA_PATH = '../data'
