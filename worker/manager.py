@@ -51,7 +51,7 @@ collection = ''
 collectionVersion =''
 collectionRepoVersions =''
 collectionBlacklist = ''
-evolution = []
+evolution = {"dsm_packages_clustering_cost":[], "dsm_packages_propagation_cost":[], "dsm_packages_size":[],"dsm_classes_clustering_cost":[], "dsm_classes_propagation_cost":[], "dsm_classes_size":[], "dsm_process_time":[], "project_size":[], "dates":[]}
 
 
 def main():
@@ -230,14 +230,24 @@ def down_repo(repo_id, git_url, path, name):
                             with time_limit(3600):
                                 res = m.run_test(repo_id, path, version)
                                 print "ANALYZER REPONSE: " + str(res)
-                                print d
+                                print repo_id
                                 if d is not None and d!=0:
                                     version[d][test_name] = res
                     
                                 #evolution
-                                #evolution[test_name].append(res['time_cost'])
                                 if test_name == "dsm":
-                                    evolution.append(version['date'])
+                                    evolution["dsm_packages_clustering_cost"].append(res["dsm_packages_clustering_cost"])
+                                    evolution["dsm_packages_propagation_cost"].append(res["dsm_packages_propagation_cost"])
+                                    evolution["dsm_packages_size"].append(res["dsm_packages_size"])
+                                    
+                                    
+                                    evolution["dsm_classes_clustering_cost"].append(res["dsm_classes_clustering_cost"])
+                                    evolution["dsm_classes_propagation_cost"].append(res["dsm_classes_propagation_cost"])
+                                    evolution["dsm_classes_size"].append(res["dsm_classes_size"])
+                                    evolution["dsm_process_time"].append(res["dsm_process_time"])
+
+                                    evolution["project_size"].append(res["project_size"])
+                                    evolution["dates"].append(version['date'])
                                     print "EVOLUTION RECORD: "+ str(evolution)
                             completed = True
                         except Exception as e:

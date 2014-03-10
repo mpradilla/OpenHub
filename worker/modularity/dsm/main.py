@@ -40,7 +40,7 @@ def run_test(id, path, repo_db):
     
         os.chdir('..')
         os.chdir('..')
-        os.chdir('/Users/dasein/OpenHub/worker/modularity/dsm')
+        #os.chdir('/Users/dasein/OpenHub/worker/modularity/dsm')
     
         p = subprocess.Popen(["java", "-Xmx4G", "-jar", "dtangler-core.jar","-input=/"+path], stdout=subprocess.PIPE)
         out, err = p.communicate()
