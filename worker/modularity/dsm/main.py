@@ -12,6 +12,8 @@ import zlib
 from propagation_cost import calculatePropagationCost
 from clustering_cost import calculateClusteringCost
 from os.path import relpath
+import linecache
+import sys
 
 #===============================================================================
 # Extract Project DSM with Dtangler https://support.requeste.com/dtangler/index.php
@@ -19,6 +21,7 @@ from os.path import relpath
 def run_test(id, path, repo_db):
     
     try:
+        print "DSM start"
         start_time = time.time()
         response = {}
         os.chdir(path)
@@ -28,13 +31,16 @@ def run_test(id, path, repo_db):
     
         p = subprocess.Popen(["mvn", "package",  "-DskipTests=true"], stdout=subprocess.PIPE)
         out, err = p.communicate()
+        
+        print "Project Compiled with mvn"
     
         response["project_build_time"] = time.time() - start_time
         start_time = time.time()
     
-        #os.chdir('/Users/dasein/OpenHub/worker/modularity/dsm')
+    
         os.chdir('..')
         os.chdir('..')
+        os.chdir('/Users/dasein/OpenHub/worker/modularity/dsm')
     
         p = subprocess.Popen(["java", "-Xmx4G", "-jar", "dtangler-core.jar","-input=/"+path], stdout=subprocess.PIPE)
         out, err = p.communicate()
@@ -157,6 +163,6 @@ def PrintException():
 
 if __name__ == '__main__':
     #run_test(None, '/Users/dasein/Documents/TESIS/test/hbase-0d4fb57590d54c7f4b1b85fe8ec6138d55851f11', None)
-    #run_test(None, '/Users/dasein/Documents/TESIS/scribe-java-master', None)
+    run_test(None, '/Users/dasein/Documents/TESIS/scribe-java-master', None)
     #run_test(None, '/Users/dasein/Documents/TESIS/dtangler-master', None)
-    run_test(None, os.path.dirname(__file__), None)
+    #run_test(None, os.path.dirname(__file__), None)

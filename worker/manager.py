@@ -131,7 +131,7 @@ def down_repo(repo_id, git_url, path, name):
             #for commit in json_data:
             #    shas.append(str(commit['sha']))
             
-            version= { "date":"", "git_url":"", "dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}}}
+            version= { "modularity":{"external_dependencies":{}, "dsm":{} ,"tags": {} }, "date":"", "git_url":"", "dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}}}
             last_deps = None
             stables = 0
             analyze = False
@@ -230,6 +230,7 @@ def down_repo(repo_id, git_url, path, name):
                             with time_limit(3600):
                                 res = m.run_test(repo_id, path, version)
                                 print "ANALYZER REPONSE: " + str(res)
+                                print d
                                 if d is not None and d!=0:
                                     version[d][test_name] = res
                     
@@ -248,7 +249,7 @@ def down_repo(repo_id, git_url, path, name):
                             pass
                                 
                     version['analyzed_at'] = datetime.datetime.now()
-                    version['state'] = 'completed' if completed else 'pending'
+                    version['state'] = 'completedV2' if completed else 'pending'
                     print "Saving results to databse..."
                     
                     _id = collectionVersion.insert(version)
