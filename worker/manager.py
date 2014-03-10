@@ -19,7 +19,7 @@ import linecache
 import sys
 from xml.etree import ElementTree
 import github3
-import bson.objectId
+import bson.objectid import ObjectId
 import pymongo
 
 DATA_PATH = '../data'
@@ -38,7 +38,7 @@ MONGO_USER = ''
 MONGO_PWD = ''
 MONGO_DB = ''
 MONGO_COLL = ''
-MONGO_COLL_VERSION = 'version'
+MONGO_COLL_VERSION = 'cversion'
 MONGO_COLL_BLACKLIST = 'blacklist'
 MONGO_COLL_REPO_VERSIONS = 'repoVersions'
 
@@ -140,9 +140,10 @@ def down_repo(repo_id, git_url, path, name):
                 if 'sha' not in commit:
                     continue
                 
-                #version['sha']=commit['sha']
+                version['sha']=commit['sha']
                 version['date']=commit['commit']['author']['date']
                 version['git_url']=git_url
+                version['repo_id']=repo_id
                 
                 #download specific version of the project
                 #https://github.com/apache/hbase/archive/18326945939ce48f8b567482dc3ae732d02debca.zip
@@ -173,7 +174,7 @@ def down_repo(repo_id, git_url, path, name):
 
                 print mappings
                 if len(mappings)!=0:
-                    version['dependencies']['use'][0] = mappings
+                    version['dependencies']['use'] = mappings
                     if last_deps is None:
                         version['dependencies']['compare_to'] = 1
                         analyze= True
@@ -182,8 +183,8 @@ def down_repo(repo_id, git_url, path, name):
                     else:
                         print "Comparing Commits"
                         removed, new = compareCommits(last_deps,mappings)
-                        version['dependencies']['new'][0] = new
-                        version['dependencies']['removed'][0] = removed
+                        version['dependencies']['new'] = new
+                        version['dependencies']['removed'] = removed
                     
                         if len(removed)>0 or len(new)>0 or stables>5:
                             print "CHANGE IN POM DEPENDENCIES!!!     num removed: " + str(len(removed)) + "  num new: "+str(len(new))
@@ -195,6 +196,8 @@ def down_repo(repo_id, git_url, path, name):
                         last_deps = mappings
                 #Delete pom.xml file
                 delete_repo(path)
+                
+                os.chdir(REPO_DOWNLOAD_DIR)
     
                 if analyze:
                     print "Downloading code..."
@@ -209,6 +212,8 @@ def down_repo(repo_id, git_url, path, name):
     
                     #repo_json = collectionVersions.db.collection.find({"sha":version['sha']}, {"sha": 1}).limit(1)
     
+                    os.chdir(BASE_DIR)
+    
                     for d in dirs:
                         print "Analyzing %s..." % d
                         tests = [p.replace('/', '.') for p in glob.glob("%s/*" % d) if os.path.isdir(p)]  # Test list in the directory
@@ -220,10 +225,13 @@ def down_repo(repo_id, git_url, path, name):
                     for test in tests:
                         m = importlib.import_module(test + ".main")
                         test_name = test.split('.')[1]
+                        print "TEST: " + str(test_name)
                         try:
                             with time_limit(3600):
                                 res = m.run_test(repo_id, path, version)
-                                version[d][test_name] = res
+                                print "ANALYZER REPONSE: " + str(res)
+                                if d is not None and d!=0:
+                                    version[d][test_name] = res
                     
                                 #evolution
                                 #evolution[test_name].append(res['time_cost'])
@@ -234,17 +242,18 @@ def down_repo(repo_id, git_url, path, name):
                         except Exception as e:
                             print 'Test error: %s %s' % (test, str(e))
                             # data = {'name': test_name, 'value': "Error:" + str(e)}
-                            version[d][test_name] = {'error': "Error:" + str(e), 'stack_trace': traceback.format_exc()}
+                            #version[d][test_name] = {'error': "Error:" + str(e), 'stack_trace': traceback.format_exc()}
                             completed = False
+                            PrintException()
                             pass
                                 
                     version['analyzed_at'] = datetime.datetime.now()
                     version['state'] = 'completed' if completed else 'pending'
                     print "Saving results to databse..."
                     
-                    id = collectionVersion.insert(version)
-                    print "VERSION ID" + str(id)
-                    collectionRepoVersions.insert({"repo":repo_id, "version":id})
+                    _id = collectionVersion.insert(version)
+                    print "VERSION ID" + str(_id)
+                    collectionRepoVersions.insert({"repo":repo_id, "version":_id})
                     
                     delete_repo(path)    
                         
