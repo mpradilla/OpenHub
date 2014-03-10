@@ -21,6 +21,7 @@ def run_test(id, path, repo_db):
     try:
         start_time = time.time()
         response = {}
+        os.chdir(path)
     
         #COMPILE THE PROJECT!!
         print "DSM ANALYZER PATH RECEIVED: " +str(path)
