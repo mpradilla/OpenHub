@@ -1,24 +1,63 @@
 import json
 from pprint import pprint
+import numpy as np
+import matplotlib.pyplot as plt
 
 usesDict={}
 
 def load_data():
     count =0
     data = []
-    with open('data/reposSecondCompleted.json') as f:
+    with open('data/evolutionV1.json') as f:
         for line in f:
             data.append(json.loads(line))
-            if count > 1000:
+            if count > 10000:
                 break
             else:
                 count+=1
 
-    getTotalProcessingTimeSize(data)
+    #getTotalProcessingTimeSize(data)
+    getEvolutionStats(data)
+
+
+
+def getEvolutionStats(data):
+
+
+
+    count = 0
+
+    for repo in data:
+
+        count=+1
+
+        if "dsm_classes_propagation_cost" in repo["evolution"]:
+            print "SII"
+            same = -1
+            for i in range(0,len(repo["evolution"]["dates"]),1):
+                    #if "dsm_classes_propagation_cost" in repo["evolution"]:
+                        #print repo["evolution"]["dates"][i]
+                
+                if same != repo["evolution"]["dsm_classes_clustering_cost"][i]["value"]:
+                    print repo["evolution"]["dsm_classes_clustering_cost"][i]["value"]
+                    plt.plot(i,repo["evolution"]["dsm_classes_clustering_cost"][i]["value"],'or')
+                    plt.plot(i,repo["evolution"]["dsm_classes_clustering_cost"][i]["value"],'b-')
+                    same = repo["evolution"]["dsm_classes_clustering_cost"][i]["value"]
+
+    plt.show()
+
 
 
     # for line in data:
         #print line["modularity"]["external_dependencies"]
+
+def tendence(array):
+
+    sum = 0
+    num = len(array)
+    for po in array:
+        sum += poj
+
 
 def getTotalProcessingTimeSize(data):
 

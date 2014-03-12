@@ -97,6 +97,152 @@ def main():
     channel.start_consuming()
 
 
+def getCleanCommitList(repo_id, git_url, path, name):
+    """
+    This method get all the commits with pom.xml file changes for a specific repository.
+    Then clean all commits, and leave only one for each day.
+    Then download and analyze each pom.xml file searching for dependencie additions or suppresions
+    Then leave only 2 commits with no changes between commits with changes, trying to hace the biggest distance between them.
+    
+    :params: Github repository id
+    :return: json_data with the selected commits for a repository
+    
+    """
+    global GH_CUR_USR
+    
+    try:
+        os.chdir(REPO_DOWNLOAD_DIR)
+        
+        #GET ALL COMMITS FOR A REPO
+        r = requests.get("https://api.github.com/repositories/"+str(repo_id)+"/commits?path=pom.xml&per_page=100", auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
+        json_data = json.loads(r.text)
+        delete_repo(REPO_DOWNLOAD_DIR+"pom.xml")
+        
+        if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
+            print "limit API exceded"
+            GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
+            getCleanCommitList(repo_id, git_url, path, name)
+        
+        #Last commit sha from page
+        sha = json_data[-1]['sha']
+        
+        end=false
+        #Initial commit in first page, avoid while
+        if json_data[-1]['parents'] is None or len(json_data[-1]['parents'])==0:
+            end=true
+        while not end:
+        
+            r = requests.get("https://api.github.com/repositories/"+str(repo_id)+"/commits?path=pom.xml&per_page=100&last_sha="+str(sha), auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
+            next_data = json.loads(r.text)
+            delete_repo(REPO_DOWNLOAD_DIR+"pom.xml")
+
+            if 'documentation_url' in next_data and next_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
+                print "limit API exceded"
+                GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
+
+            elif next_data is None or len(next_data)==0:
+                end=true
+            else:
+                #Last commit sha from page
+                sha = next_data[-1]['sha']
+                json_data = json_data + next_data
+
+
+        #json_data contains now all commits for repo
+        # Remove commits for the same day, let only one
+        version= {"repo_id":"","sha":"","date":"","modularity":{"external_dependencies":{}, "dsm":{} ,"tags": {} }, "git_url":"", "full_name":"", "dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"", "stable":"", "analyze":""}
+        versions = []
+        last_day=-1
+        last_sha=0
+        last_deps=None
+        for commit in json_data:
+        
+            day = getDateAsNumber(commit['commit']['author']['date'])
+            
+            if last_day==day:
+                json_data.remove(commit)
+                print "COMMIT DELETED"
+            else:
+                last_day=day
+                pomContent = downloadRepoPomFile(repo_id,name,commit['sha'])
+                tree = ElementTree.fromstring(pomContent)
+                mappings = None
+                try:
+                    mappings = getMappings(tree)
+                except:
+                    print "CANNOT GET DEPENDENCIES FROM POM... deleting commit from list"
+                    json_data.remove(commit)
+                    continue
+                
+                if mappings is not None and len(mappings)!=0:
+                    
+                    version['repo_id']= repo_id
+                    version['sha'] = commit['sha']
+                    version['date'] = commit['commit']['author']['date']
+                    version['date_number'] = day
+                    version['git_url'] = git_url
+                    version['full_name'] = name
+                    version['last_sha'] = last_sha
+                    
+                    version['dependencies']['use'] = mappings
+                    if last_deps is None:
+                        version['dependencies']['compare_to'] = 0
+                    else:
+                        removed, new = compareCommits(last_deps,mappings)
+                        version['dependencies']['new'] = new
+                        version['dependencies']['removed'] = removed
+                        version['dependencies']['compare_to'] = last_sha
+                        last_deps = mappings
+                    
+                    if len(removed)>0 or len(new)>0:
+                        print "CHANGE IN POM DEPENDENCIES!!!     num removed: " + str(len(removed)) + "  num new: "+str(len(new))
+                        version['analyze']= 1
+                        version['stable']= 0
+                        stables=0
+                    else:
+                        version['stable']= 1
+                        #Stable version to analyze will be define later, based on a more intelligent decision
+                        version['analyze']= 0
+        
+                    last_deps = mappings
+                    last_sha=commit['sha']
+                else:
+                    json_data.remove(commit)
+                    print "COMMIT DELETED because of no depedencies in pom.xml where found"
+                
+                versions.append(version)
+
+
+    except:
+        PrintException()
+    finally:
+        os.chdir(BASE_DIR)
+
+def getDateAsNumber(string_date):
+    """
+    param: string_date in format : 2010-09-05T20:01:30Z
+    return: number in format 20100905
+    """
+    x = string_date.split('T',1);
+    y = x[0].split('-')
+    day = str(y[0])+str(y[1])+ str(y[2])
+    return day
+
+def downloadRepoPomFile(repo_id, name, sha):
+
+
+    r = requests.get("https://raw.github.com/"+str(name)+"/"+str(sha)+"/pom.xml", auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
+    json_data = json.loads(r.text)
+    delete_repo(REPO_DOWNLOAD_DIR+"pom.xml")
+    
+    if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
+        print "limit API exceded"
+        GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
+        return downloadRepoPomFile(repo_id,name,sha)
+    else:
+        return r.content
+
+
 def down_repo(repo_id, git_url, path, name):
     """Download repo from specified url into path."""
     global GH_CUR_USR
@@ -111,7 +257,8 @@ def down_repo(repo_id, git_url, path, name):
         reauth = True
         gh = None
         
-        r = requests.get("https://api.github.com/repositories/"+str(repo_id)+"/commits?path=pom.xml", auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
+        #https://api.github.com/repositories/160985/commits?path=pom.xml&last_sha=9a30d48c276983f57997d93edf2aa0cb6d7d72a1&per_page=100
+        r = requests.get("https://api.github.com/repositories/"+str(repo_id)+"/commits?path=pom.xml&per_page=100", auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
         json_data = json.loads(r.text)
         
         if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
@@ -157,6 +304,7 @@ def down_repo(repo_id, git_url, path, name):
                 
                 analyze = False
                 r = requests.get("https://raw.github.com/"+str(name)+"/"+str(commit['sha'])+"/pom.xml", auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
+                json_data = json.loads(r.text)
                 
                 if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
                     print "limit API exceded"
