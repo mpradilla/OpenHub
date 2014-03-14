@@ -97,7 +97,7 @@ def main():
     channel.start_consuming()
 
 
-def getCleanCommitList(repo_id, git_url, path, name):
+def getCleanCommitList(repo_id, html_url, path, name):
     """
     This method get all the commits with pom.xml file changes for a specific repository.
     Then clean all commits, and leave only one for each day.
@@ -121,7 +121,7 @@ def getCleanCommitList(repo_id, git_url, path, name):
         if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
             print "limit API exceded"
             GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
-            getCleanCommitList(repo_id, git_url, path, name)
+            getCleanCommitList(repo_id, html_url, path, name)
         
         #Last commit sha from page
         sha = json_data[-1]['sha']
@@ -150,7 +150,7 @@ def getCleanCommitList(repo_id, git_url, path, name):
 
         #json_data contains now all commits for repo
         # Remove commits for the same day, let only one
-        version= {"repo_id":"","sha":"","date":"","modularity":{"external_dependencies":{}, "dsm":{} ,"tags": {} }, "git_url":"", "full_name":"", "dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"", "stable":"", "analyze":""}
+        version= {"repo_id":"","sha":"","date":"","external_dependencies":{}, "html_url":"", "full_name":"", "dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"", "stable":"", "analyze":""}
         versions = []
         last_day=-1
         last_sha=0
@@ -161,7 +161,7 @@ def getCleanCommitList(repo_id, git_url, path, name):
             
             if last_day==day:
                 json_data.remove(commit)
-                print "COMMIT DELETED"
+                print "COMMIT From same date DELETED "
             else:
                 last_day=day
                 pomContent = downloadRepoPomFile(repo_id,name,commit['sha'])
@@ -180,7 +180,7 @@ def getCleanCommitList(repo_id, git_url, path, name):
                     version['sha'] = commit['sha']
                     version['date'] = commit['commit']['author']['date']
                     version['date_number'] = day
-                    version['git_url'] = git_url
+                    version['html_url'] = html_url
                     version['full_name'] = name
                     version['last_sha'] = last_sha
                     
@@ -212,7 +212,8 @@ def getCleanCommitList(repo_id, git_url, path, name):
                 
                 versions.append(version)
 
-
+        return versions
+            
     except:
         PrintException()
     finally:
@@ -242,14 +243,95 @@ def downloadRepoPomFile(repo_id, name, sha):
     else:
         return r.content
 
+def downloadRepo(html_url, sha):
 
-def down_repo(repo_id, git_url, path, name):
+    os.chdir(REPO_DOWNLOAD_DIR)
+    
+    downUrl= html_url+'/archive/'+sha+'.zip'
+    r = requests.get(downUrl, auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
+    if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
+        GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
+        r = requests.get(downUrl, auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
+    
+    z = zipfile.ZipFile(StringIO.StringIO(r.content))
+    z.extractall()
+    return true
+
+    os.chdir(BASE_DIR)
+
+
+def analyzeVersion(path, version):
+    '''
+        
+    :param: path of project already EXTRACTED and ready for analysis
+    '''
+    
+    os.chdir(BASE_DIR)
+    #COMPILE the project
+    
+    
+    #ANALYZE the project
+    
+    ## Get test available
+    for d in dirs:
+        print "Analyzing %s..." % d
+        tests = [p.replace('/', '.') for p in glob.glob("%s/*" % d) if os.path.isdir(p)]  # Test list in the directory
+    
+    print "Current tests for %s: %s" % (d, tests)
+    completed = True
+    for test in tests:
+        m = importlib.import_module(test + ".main")
+        test_name = test.split('.')[1]
+        print "TEST: " + str(test_name)
+        
+        try:
+            # 1 hour time limit for one project release
+            with time_limit(3600):
+                res = m.run_test(repo_id, path, version)
+                print "ANALYZER REPONSE: " + str(res)
+                print repo_id
+                if d is not None and d!=0:
+                    #version[d][test_name] = res
+                    version["dsm"] = res
+            completed = True
+        
+        except Exception as e:
+            print 'Test error: %s %s' % (test, str(e))
+            # data = {'name': test_name, 'value': "Error:" + str(e)}
+            #version[d][test_name] = {'error': "Error:" + str(e), 'stack_trace': traceback.format_exc()}
+            completed = False
+            PrintException()
+            pass
+    
+    version['analyzed_at'] = datetime.datetime.now()
+    version['state'] = 'completedV3' if completed else 'pending'
+    print "Saving results to databse..."
+    
+
+    
+    delete_repo(path)
+
+def saveVersionAnalysisResult(version, repo_id):
+
+    _id = collectionVersion.insert(version)
+    print "VERSION ID" + str(_id)
+    collectionRepoVersions.insert({"repo":repo_id, "version":_id})
+    print "VERSION SAVED"
+
+
+def down_repo(repo_id, html_url, path, name):
     """Download repo from specified url into path."""
     global GH_CUR_USR
 
     delete_repo(path)
     try:
         os.chdir(REPO_DOWNLOAD_DIR)
+        
+        
+        
+        
+        
+        
         
         #Link to get all commits SHA's where the pom.xml file was modified
         #https://api.github.com/repositories/160985/commits?path=pom.xml&per_page=100
@@ -278,74 +360,13 @@ def down_repo(repo_id, git_url, path, name):
             #for commit in json_data:
             #    shas.append(str(commit['sha']))
             
-            version= { "modularity":{"external_dependencies":{}, "dsm":{} ,"tags": {} }, "date":"", "git_url":"", "dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}}}
+            version= { "modularity":{"external_dependencies":{}, "dsm":{} ,"tags": {} }, "date":"", "html_url":"", "dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}}}
             last_deps = None
             stables = 0
             analyze = False
             for commit in json_data:
                 
-                if 'sha' not in commit:
-                    continue
                 
-                version['sha']=commit['sha']
-                version['date']=commit['commit']['author']['date']
-                version['git_url']=git_url
-                version['repo_id']=repo_id
-                
-                #download specific version of the project
-                #https://github.com/apache/hbase/archive/18326945939ce48f8b567482dc3ae732d02debca.zip
-                downUrl= str(git_url)+'/archive/'+str(commit['sha'])+'.zip'
-                
-                #print "SHAs for repo: "+ str(shas)
-                #print "SHAs number: "+ str(len(shas))
-    
-                #Download specific pom.xml
-                #https://raw.github.com/apache/hbase/5722bd679c0416483ab752a3e327f26a4ef8f18d/pom.xml
-                
-                analyze = False
-                r = requests.get("https://raw.github.com/"+str(name)+"/"+str(commit['sha'])+"/pom.xml", auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
-                json_data = json.loads(r.text)
-                
-                if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
-                    print "limit API exceded"
-                    GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
-                    #gh = github3.login(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd'])
-                    r = requests.get("https://raw.github.com/"+str(name)+"/"+str(commit['sha'])+"/pom.xml", auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
-            
-                tree = ElementTree.fromstring(r.content)
-                try:
-                    mappings = getMappings(tree)
-
-                except:
-                    print "CANNOT GET DEPENDENCIES FROM POM"
-                    continue
-
-                print mappings
-                if len(mappings)!=0:
-                    version['dependencies']['use'] = mappings
-                    if last_deps is None:
-                        version['dependencies']['compare_to'] = 1
-                        analyze= True
-                        downUrl= git_url+'/archive/master.zip'
-                        print "Downloading master form project"
-                    else:
-                        print "Comparing Commits"
-                        removed, new = compareCommits(last_deps,mappings)
-                        version['dependencies']['new'] = new
-                        version['dependencies']['removed'] = removed
-                    
-                        if len(removed)>0 or len(new)>0 or stables>5:
-                            print "CHANGE IN POM DEPENDENCIES!!!     num removed: " + str(len(removed)) + "  num new: "+str(len(new))
-                            analyze= True
-                            stables=0
-                        else:
-                            stables+=1
-        
-                        last_deps = mappings
-                #Delete pom.xml file
-                delete_repo(path)
-                
-                os.chdir(REPO_DOWNLOAD_DIR)
     
                 if analyze:
                     print "Downloading code..."
@@ -422,9 +443,9 @@ def down_repo(repo_id, git_url, path, name):
         else:
             print "NO POM.XML"
             return None
-        # print git.Git().clone(git_url)
-        # subprocess.call(['git', 'clone', git_url], close_fds=True)
-        #r = requests.get(git_url)
+        # print git.Git().clone(html_url)
+        # subprocess.call(['git', 'clone', html_url], close_fds=True)
+        #r = requests.get(html_url)
         #z = zipfile.ZipFile(StringIO.StringIO(r.content))
         #z.extractall()
 
@@ -515,15 +536,38 @@ def callback(ch, method, properties, body):
     Will be executed when the queue pops this worker
     """
     data = body.split("::")
-    git_url = data[0]
+    html_url = data[0]
     repo_id = int(data[1])
     name = data[2]
     print " [x] Received %r" % (data,)
 
-    path = '%s/%s' % (REPO_DOWNLOAD_DIR, name + '-master')
+    path = '%s/%s' % (REPO_DOWNLOAD_DIR, name)
     try:
         repo_json = collection.find_one({"_id": repo_id})
-        # down_repo(git_url, path)
+        
+        
+        #Download master and check viablitiy of analysis for the project. Avoid get all pom.xml commits analysis if is inpossible to analyze.
+        if downloadRepo(repo_json['html_url'], "master"):
+        
+            #Download porject Master
+            downloadRepo(repo_json['html_url'], "master")
+            path = '%s/%s' % (REPO_DOWNLOAD_DIR, name+'-master')
+            version= {"repo_id":repo_id,"sha":"master","date":"","external_dependencies":{}, "html_url":"", "full_name":"", "dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"0", "stable":"", "analyze":""}
+            #Try to analyze master
+            version = analyzeVersion(path, version)
+            #Save result into version
+            saveVersionAnalysisResult(version,repo_id)
+      
+      
+        
+        else:
+        
+        
+        
+        
+        
+        
+        # down_repo(html_url, path)
         #down_repo(repo_id, repo_json['html_url'] + '/archive/master.zip', path , repo_json['full_name'])
         down_repo(repo_id, repo_json['html_url'], path , repo_json['full_name'])
         completed = True
@@ -617,6 +661,7 @@ def PrintException():
     linecache.checkcache(filename)
     line = linecache.getline(filename, lineno, f.f_globals)
     print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj)
+
 
 if __name__ == '__main__':
     main()
