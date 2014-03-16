@@ -150,7 +150,7 @@ def getCleanCommitList(repo_id, html_url, name):
 
         #json_data contains now all commits for repo
         # Remove commits for the same day, let only one
-        version= {"repo_id":"","sha":"","date":"","external_dependencies":{}, "html_url":"", "full_name":"", "dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"", "stable":"", "analyze":""}
+        version= {"repo_id":"","sha":"","date":"", "html_url":"", "full_name":"", "external_dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"", "stable":"", "analyze":""}
         versions = []
         last_day=-1
         last_sha=0
@@ -184,14 +184,14 @@ def getCleanCommitList(repo_id, html_url, name):
                     version['full_name'] = name
                     version['last_sha'] = last_sha
                     
-                    version['dependencies']['use'] = mappings
+                    version['external_dependencies']['use'] = mappings
                     if last_deps is None:
-                        version['dependencies']['compare_to'] = 0
+                        version['external_dependencies']['compare_to'] = 0
                     else:
                         removed, new = compareCommits(last_deps,mappings)
-                        version['dependencies']['new'] = new
-                        version['dependencies']['removed'] = removed
-                        version['dependencies']['compare_to'] = last_sha
+                        version['external_dependencies']['new'] = new
+                        version['external_dependencies']['removed'] = removed
+                        version['external_dependencies']['compare_to'] = last_sha
                         last_deps = mappings
                     
                     if len(removed)>0 or len(new)>0:
@@ -261,7 +261,7 @@ def downloadRepo(html_url, sha):
     os.chdir(BASE_DIR)
 
 
-def analyzeVersion(path, version):
+def analyzeVersion(path, version, complete):
     '''
         
     :param: path of project already EXTRACTED and ready for analysis
@@ -277,28 +277,30 @@ def analyzeVersion(path, version):
     print "Current tests for %s: %s" % (d, tests)
     completed = True
     for test in tests:
-        m = importlib.import_module(test + ".main")
-        test_name = test.split('.')[1]
-        print "TEST: " + str(test_name)
         
-        try:
-            # 1 hour time limit for one project release
-            with time_limit(3600):
-                res = m.run_test(repo_id, path, version)
-                print "ANALYZER REPONSE: " + str(res)
-                print repo_id
-                if d is not None and d!=0:
-                    #version[d][test_name] = res
-                    version["dsm"] = res
-            completed = True
+        if complete or test=="dsm":
+            m = importlib.import_module(test + ".main")
+            test_name = test.split('.')[1]
+            print "TEST: " + str(test_name)
         
-        except Exception as e:
-            print 'Test error: %s %s' % (test, str(e))
-            # data = {'name': test_name, 'value': "Error:" + str(e)}
-            #version[d][test_name] = {'error': "Error:" + str(e), 'stack_trace': traceback.format_exc()}
-            completed = False
-            PrintException()
-            pass
+            try:
+                # 1 hour time limit for one project release
+                with time_limit(3600):
+                    res = m.run_test(repo_id, path, version)
+                    print "ANALYZER REPONSE: " + str(res)
+                    print repo_id
+                    if d is not None and d!=0:
+                        #version[d][test_name] = res
+                        version[test_name] = res
+                completed = True
+        
+            except Exception as e:
+                print 'Test error: %s %s' % (test, str(e))
+                # data = {'name': test_name, 'value': "Error:" + str(e)}
+                #version[d][test_name] = {'error': "Error:" + str(e), 'stack_trace': traceback.format_exc()}
+                completed = False
+                    PrintException()
+                    pass
     
     version['analyzed_at'] = datetime.datetime.now()
     version['state'] = 'completedV3' if completed else 'pending'
@@ -320,139 +322,6 @@ def saveVersionAnalysisResult(version, repo_id):
         collectionVersion.update({"_id":version_json["_id"]}, version)
 
  collection.update({"_id": repo_id}, repo_json)
-
-def down_repo(repo_id, html_url, path, name):
-    """Download repo from specified url into path."""
-    global GH_CUR_USR
-
-    delete_repo(path)
-    try:
-        os.chdir(REPO_DOWNLOAD_DIR)
-  
-        
-        #Link to get all commits SHA's where the pom.xml file was modified
-        #https://api.github.com/repositories/160985/commits?path=pom.xml&per_page=100
-        
-        reauth = True
-        gh = None
-        
-        #https://api.github.com/repositories/160985/commits?path=pom.xml&last_sha=9a30d48c276983f57997d93edf2aa0cb6d7d72a1&per_page=100
-        r = requests.get("https://api.github.com/repositories/"+str(repo_id)+"/commits?path=pom.xml&per_page=100", auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
-        json_data = json.loads(r.text)
-        
-        if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
-            print "limit API exceded"
-            GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
-            #gh = github3.login(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd'])
-            return "LOGIN response" + str (gh)
-            r = requests.get("https://api.github.com/repositories/"+str(repo_id)+"/commits?path=pom.xml", auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
-            json_data = json.loads(r.text)
-        
-        print "Repos ID: " + str(repo_id)
-        print json_data
-        if json_data:
-        
-            #shas = [commit['sha'] for commit in json_data]
-            #shas = []
-            #for commit in json_data:
-            #    shas.append(str(commit['sha']))
-            
-            version= { "modularity":{"external_dependencies":{}, "dsm":{} ,"tags": {} }, "date":"", "html_url":"", "dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}}}
-            last_deps = None
-            stables = 0
-            analyze = False
-            for commit in json_data:
-                
-                
-    
-                if analyze:
-                    print "Downloading code..."
-                    r = requests.get(downUrl, auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
-                    if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
-                        GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
-                        #gh = github3.login(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd'])
-                        r = requests.get(downUrl, auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
-                    
-                    z = zipfile.ZipFile(StringIO.StringIO(r.content))
-                    z.extractall()
-    
-                    #repo_json = collectionVersions.db.collection.find({"sha":version['sha']}, {"sha": 1}).limit(1)
-    
-                    os.chdir(BASE_DIR)
-    
-                    for d in dirs:
-                        print "Analyzing %s..." % d
-                        tests = [p.replace('/', '.') for p in glob.glob("%s/*" % d) if os.path.isdir(p)]  # Test list in the directory
-                    
-                    print "Current tests for %s: %s" % (d, tests)
-                    # repo_json[d] = []
-                    #repo_json[d] = {}
-                    completed = True
-                    for test in tests:
-                        m = importlib.import_module(test + ".main")
-                        test_name = test.split('.')[1]
-                        print "TEST: " + str(test_name)
-                        try:
-                            with time_limit(3600):
-                                res = m.run_test(repo_id, path, version)
-                                print "ANALYZER REPONSE: " + str(res)
-                                print repo_id
-                                if d is not None and d!=0:
-                                    version[d][test_name] = res
-                    
-                                #evolution
-                                if test_name == "dsm":
-                                    evolution["dsm_packages_clustering_cost"].append(res["dsm_packages_clustering_cost"])
-                                    evolution["dsm_packages_propagation_cost"].append(res["dsm_packages_propagation_cost"])
-                                    evolution["dsm_packages_size"].append(res["dsm_packages_size"])
-                                    
-                                    
-                                    evolution["dsm_classes_clustering_cost"].append(res["dsm_classes_clustering_cost"])
-                                    evolution["dsm_classes_propagation_cost"].append(res["dsm_classes_propagation_cost"])
-                                    evolution["dsm_classes_size"].append(res["dsm_classes_size"])
-                                    evolution["dsm_process_time"].append(res["dsm_process_time"])
-
-                                    evolution["project_size"].append(res["project_size"])
-                                    evolution["dates"].append(version['date'])
-                                    print "EVOLUTION RECORD: "+ str(evolution)
-                            completed = True
-                        except Exception as e:
-                            print 'Test error: %s %s' % (test, str(e))
-                            # data = {'name': test_name, 'value': "Error:" + str(e)}
-                            #version[d][test_name] = {'error': "Error:" + str(e), 'stack_trace': traceback.format_exc()}
-                            completed = False
-                            PrintException()
-                            pass
-                                
-                    version['analyzed_at'] = datetime.datetime.now()
-                    version['state'] = 'completedV2' if completed else 'pending'
-                    print "Saving results to databse..."
-                    
-                    _id = collectionVersion.insert(version)
-                    print "VERSION ID" + str(_id)
-                    collectionRepoVersions.insert({"repo":repo_id, "version":_id})
-                    
-                    delete_repo(path)    
-                        
-            
-            return evolution
-
-        else:
-            print "NO POM.XML"
-            return None
-        # print git.Git().clone(html_url)
-        # subprocess.call(['git', 'clone', html_url], close_fds=True)
-        #r = requests.get(html_url)
-        #z = zipfile.ZipFile(StringIO.StringIO(r.content))
-        #z.extractall()
-
-        os.chdir(BASE_DIR)
-        print "Done"
-    except:
-        PrintException()
-        raise
-    finally:
-        os.chdir(BASE_DIR)
 
 
 def compareCommits(oldDeps, newDeps):
@@ -547,11 +416,13 @@ def callback(ch, method, properties, body):
         
             #Download porject Master
             path = '%s/%s' % (REPO_DOWNLOAD_DIR, name+'-master')
-            version= {"repo_id":repo_id,"sha":"master","date":"","external_dependencies":{}, "html_url":"", "full_name":"", "dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"0", "stable":"", "analyze":""}
+            version= {"repo_id":repo_id,"sha":"master","date":"", "html_url":"", "full_name":"", "external_dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"0", "stable":"", "analyze":"", "tags":{}}
             #Try to analyze master
-            version = analyzeVersion(path, version)
+            version = analyzeVersion(path, version, true)
             #Save result into version
             saveVersionAnalysisResult(version,repo_id)
+            
+            repo_json["dsm"] = version["dsm"]
             
             evolution={}
         
@@ -565,7 +436,7 @@ def callback(ch, method, properties, body):
                         
                         downloadRepo(repo_json['html_url'], version['sha'])
                         pathx = '%s/%s' % (REPO_DOWNLOAD_DIR, name+'-'+version['sha'])
-                        respVersion = analyzeVersion(pathx, version)
+                        respVersion = analyzeVersion(pathx, version, false)
                         saveVersionAnalysisResult(respVersion,repo_id)
                         if "error" not in respVersion["dsm"]:
         

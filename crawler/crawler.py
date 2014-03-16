@@ -46,6 +46,16 @@ def main(start_from=None):
     reauth = True  # Reauth variable to check if we need to reauthenticate for GitHub
     gh = None  # Just for good measure
 
+
+
+    body = "%s::%i::%s" % ("https://github.com/fernandezpablo85/scribe-java", "889932", "fernandezpablo85/scribe-java")
+    channel.basic_publish(exchange='repo_classifier',
+                          routing_key=repo.language,
+                          body=body,
+                          properties=pika.BasicProperties(
+                                                          delivery_mode=2,  # make message persistent
+                                                          ))
+    '''
     while 1:
         # Authenticate on GitHub and get all repos
         if reauth:
@@ -54,6 +64,8 @@ def main(start_from=None):
 
         # Crawl repos
         reauth, last_id = start_crawl(repos, db_repos, gh, channel, last_id)
+        
+    '''
 
     #Close connection to databse
     client.close()
@@ -128,13 +140,9 @@ def start_crawl(repos, db_repos, gh, channel, last_id):
                     print "Updated repo with id %s. No analysis necessary. Will not push to queue" % last_id
 
             else:
-                to_insert["testability"] = {"cyclomatic_complexity": None}
-                to_insert["reusability"] = {"maintainability_index": None,
-                                            "coupling_analyzer": None}
-                to_insert["security"] = {"basic_security": None,
-                                         "code_linter": None}
-                to_insert["usability"] = {"documentation_analysis": None,
-                                          "popularity_index": None}
+                to_insert["evolution"] = {}
+                to_insert["modularity"] = {"external_dependencies": None, "dsm": None, "tags":None}
+            
 
                 last_id = db_repos.insert(to_insert)
                 print "Inserted repo with id", last_id
