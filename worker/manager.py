@@ -97,7 +97,7 @@ def main():
     channel.start_consuming()
 
 
-def getCleanCommitList(repo_id, html_url, path, name):
+def getCleanCommitList(repo_id, html_url, name):
     """
     This method get all the commits with pom.xml file changes for a specific repository.
     Then clean all commits, and leave only one for each day.
@@ -121,7 +121,7 @@ def getCleanCommitList(repo_id, html_url, path, name):
         if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
             print "limit API exceded"
             GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
-            getCleanCommitList(repo_id, html_url, path, name)
+            getCleanCommitList(repo_id, html_url, name)
         
         #Last commit sha from page
         sha = json_data[-1]['sha']
@@ -230,8 +230,8 @@ def getDateAsNumber(string_date):
     return day
 
 def downloadRepoPomFile(repo_id, name, sha):
-
-
+    
+    global GH_CUR_USR
     r = requests.get("https://raw.github.com/"+str(name)+"/"+str(sha)+"/pom.xml", auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
     json_data = json.loads(r.text)
     delete_repo(REPO_DOWNLOAD_DIR+"pom.xml")
@@ -245,6 +245,7 @@ def downloadRepoPomFile(repo_id, name, sha):
 
 def downloadRepo(html_url, sha):
 
+    global GH_CUR_USR
     os.chdir(REPO_DOWNLOAD_DIR)
     
     downUrl= html_url+'/archive/'+sha+'.zip'
@@ -265,11 +266,7 @@ def analyzeVersion(path, version):
         
     :param: path of project already EXTRACTED and ready for analysis
     '''
-    
     os.chdir(BASE_DIR)
-    #COMPILE the project
-    
-    
     #ANALYZE the project
     
     ## Get test available
@@ -305,19 +302,24 @@ def analyzeVersion(path, version):
     
     version['analyzed_at'] = datetime.datetime.now()
     version['state'] = 'completedV3' if completed else 'pending'
-    print "Saving results to databse..."
-    
 
-    
     delete_repo(path)
 
 def saveVersionAnalysisResult(version, repo_id):
 
-    _id = collectionVersion.insert(version)
-    print "VERSION ID" + str(_id)
-    collectionRepoVersions.insert({"repo":repo_id, "version":_id})
-    print "VERSION SAVED"
+    version_json = collectionVersion.find_one({"sha": version["sha"]})
+    
+    if version_json is None:
+        _id = collectionVersion.insert(version)
+        print "VERSION ID" + str(_id)
+        collectionRepoVersions.insert({"repo":repo_id, "version":_id})
+        print "VERSION SAVED"
 
+    else:
+        print "Version already existed, updating the json..."
+        collectionVersion.update({"_id":version_json["_id"]}, version)
+
+ collection.update({"_id": repo_id}, repo_json)
 
 def down_repo(repo_id, html_url, path, name):
     """Download repo from specified url into path."""
@@ -326,12 +328,7 @@ def down_repo(repo_id, html_url, path, name):
     delete_repo(path)
     try:
         os.chdir(REPO_DOWNLOAD_DIR)
-        
-        
-        
-        
-        
-        
+  
         
         #Link to get all commits SHA's where the pom.xml file was modified
         #https://api.github.com/repositories/160985/commits?path=pom.xml&per_page=100
@@ -545,43 +542,64 @@ def callback(ch, method, properties, body):
     try:
         repo_json = collection.find_one({"_id": repo_id})
         
-        
         #Download master and check viablitiy of analysis for the project. Avoid get all pom.xml commits analysis if is inpossible to analyze.
         if downloadRepo(repo_json['html_url'], "master"):
         
             #Download porject Master
-            downloadRepo(repo_json['html_url'], "master")
             path = '%s/%s' % (REPO_DOWNLOAD_DIR, name+'-master')
             version= {"repo_id":repo_id,"sha":"master","date":"","external_dependencies":{}, "html_url":"", "full_name":"", "dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"0", "stable":"", "analyze":""}
             #Try to analyze master
             version = analyzeVersion(path, version)
             #Save result into version
             saveVersionAnalysisResult(version,repo_id)
-      
-      
+            
+            evolution={}
         
+            if "error" not in version:
+            
+                versions = getCleanCommitList(repo_id, repo_json['html_url'], name)
+                #versions = getSelectedCommits(versions)
+                for version in versions:
+                    
+                    if version['analyze']==1:
+                        
+                        downloadRepo(repo_json['html_url'], version['sha'])
+                        pathx = '%s/%s' % (REPO_DOWNLOAD_DIR, name+'-'+version['sha'])
+                        respVersion = analyzeVersion(pathx, version)
+                        saveVersionAnalysisResult(respVersion,repo_id)
+                        if "error" not in respVersion["dsm"]:
+        
+                            evolution["dsm_packages_clustering_cost"].append(respVersion["dsm"]["dsm_packages_clustering_cost"])
+                            evolution["dsm_packages_propagation_cost"].append(respVersion["dsm"]["dsm_packages_propagation_cost"])
+                            evolution["dsm_packages_size"].append(respVersion["dsm"]["dsm_packages_size"])
+                            evolution["dsm_classes_clustering_cost"].append(respVersion["dsm"]["dsm_classes_clustering_cost"])
+                            evolution["dsm_classes_propagation_cost"].append(respVersion["dsm"]["dsm_classes_propagation_cost"])
+                            evolution["dsm_classes_size"].append(respVersion["dsm"]["dsm_classes_size"])
+                            evolution["dsm_process_time"].append(respVersion["dsm"]["dsm_process_time"])
+                            evolution["project_size"].append(respVersion["dsm"]["project_size"])
+                            evolution["dates"].append(respVersion['date'])
+        
+                repo_json['evolution'] = evolution
+                completed=true
+            else:
+                print "ERROR in master version analysis, complete evolution analysis skipped"
+                repo_json['evolution'] = {"error":"Could not analyze master version"}
+
         else:
         
-        
-        
-        
-        
-        
-        # down_repo(html_url, path)
-        #down_repo(repo_id, repo_json['html_url'] + '/archive/master.zip', path , repo_json['full_name'])
-        down_repo(repo_id, repo_json['html_url'], path , repo_json['full_name'])
+            print "COULD NOT DOWNLOAD MASTER VERSION"
+            repo_json['evolution'] = {"error":"Could not analyze master version"}
+
+
         completed = True
         
-        if evolution is None:
+        if evolution is None or len(evolution["dates"])==0:
             collectionBlacklist.insert({"_id": repo_id})
-        
-        
-        repo_json['evolution'] = evolution
 
         repo_json['analyzed_at'] = datetime.datetime.now()
         
         if evolution:
-            repo_json['state'] = 'completedV2'
+            repo_json['state'] = 'completedV3'
         elif completed is None:
             repo_json['state'] = 'NO_POM'
         else:
