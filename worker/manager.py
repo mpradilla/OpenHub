@@ -427,10 +427,7 @@ def callback(ch, method, properties, body):
     Will be executed when the queue pops this worker
     """
     global evolution
-    
     blacklistThis = False
-    
-    
     data = body.split("::")
     html_url = data[0]
     repo_id = int(data[1])
@@ -456,27 +453,31 @@ def callback(ch, method, properties, body):
     path = '%s/%s' % (REPO_DOWNLOAD_DIR, name)
     try:
         
+        skip=False
         repo_json = collection.find_one({"_id": repo_id})
         
-        print "Downloading pom file..."
-        pomText = downloadRepoPomFile(repo_id, full_name, "master")
-        
-        if "<!DOCTYPE html>" in pomText[0:50] or repo_id==24768:
-            #404 Github Page, there is no pom there!
-            collectionBlacklist.save({"_id": repo_id, "value":"NO_POM"})
-            print "REPO HAS NO POM.XML. ADDED TO BLACKLIST"
-        
-        print "Pom download completed."
-        
-        print "Downloading master source code..."
-        if repo_json is None:
-            print "no repo in database"
         if collectionBlacklist.find_one({"_id": repo_id}):
             print "PROJECT IN BLACKLIST... skipping analysis"
-    
-        #Download master and check viablitiy of analysis for the project. Avoid get all pom.xml commits analysis if is inpossible to analyze.
+            skip=True
         
-        elif downloadRepo(html_url, "master",repo_id):
+        elif repo_json is None:
+            print "no repo in database"
+            skip=True
+        
+        else:
+            print "Downloading pom file..."
+            pomText = downloadRepoPomFile(repo_id, full_name, "master")
+            print "Pom download completed."
+        
+            if "<!DOCTYPE html>" in pomText[0:50] or repo_id==24768:
+                #404 Github Page, there is no pom there!
+                collectionBlacklist.save({"_id": repo_id, "value":"NO_POM"})
+                print "REPO HAS NO POM.XML. ADDED TO BLACKLIST"
+                skip=True
+        
+        print "Downloading master source code..."
+        #Download master and check viablitiy of analysis for the project. Avoid get all pom.xml commits analysis if is inpossible to analyze
+        if skip==False and downloadRepo(html_url, "master",repo_id):
             
             print "Master download completed."
             #Download porject Master
@@ -517,6 +518,11 @@ def callback(ch, method, properties, body):
                             downloadRepo(repo_json['html_url'], version['sha'], repo_id)
                             pathx = '%s/%s' % (REPO_DOWNLOAD_DIR, name+'-'+version['sha'])
                             respVersion = analyzeVersion(repo_id,pathx, version, False)
+                            
+                            print "&&&&&&&&&&&&&&&&&&&&&"
+                            print respVersion
+                            print "&&&&&&&&&&&&&&&&&&&&&"
+                            
                             saveVersionAnalysisResult(respVersion,repo_id)
                             if "error" not in respVersion["dsm"]:
         

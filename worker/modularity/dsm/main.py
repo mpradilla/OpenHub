@@ -30,10 +30,10 @@ def run_test(id, path, repo_db):
         #COMPILE THE PROJECT!!
         print "DSM ANALYZER PATH RECEIVED: " +str(path)
     
+        print "Compiling project with mvn..."
         try:
             p = subprocess.Popen(["mvn", "package",  "-DskipTests=true"], stdout=subprocess.PIPE)
             out, err = p.communicate()
-        
         except:
             return {"error": "Could not compile the project with mvn package"}
         

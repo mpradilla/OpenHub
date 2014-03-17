@@ -1,0 +1,10 @@
+target
+*~
+*.iml
+*.ipr
+*.iws
+release.properties
+*.xml.releaseBackup
+**/.classpath
+**/.project
+**/.settings
