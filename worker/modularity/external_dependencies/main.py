@@ -49,6 +49,7 @@ def getMappings(rootNode):
                 val = child.text
         
         if val and key:
+            key =key.replace('.','/')
             mapping[key] = val
     
     return mapping
