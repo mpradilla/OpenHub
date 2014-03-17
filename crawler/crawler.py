@@ -47,25 +47,30 @@ def main(start_from=None):
     gh = None  # Just for good measure
 
 
+    '''
+        https://github.com/raykrueger/hibernate-memcached', '19816', 'hibernate-memcached']
 
-    body = "%s::%i::%s" % ("https://github.com/fernandezpablo85/scribe-java", "889932", "fernandezpablo85/scribe-java")
+    #body = "%s::%i::%s" % ("https://github.com/fernandezpablo85/scribe-java", 889932, "fernandezpablo85/scribe-java")
+    #body = "%s::%i::%s" % ("https://github.com/TUNYK/htmlcompressor-maven-plugin", 3088607, "TUNYK/htmlcompressor-maven-plugin")
+
     channel.basic_publish(exchange='repo_classifier',
-                          routing_key=repo.language,
+                        routing_key="Java",
                           body=body,
                           properties=pika.BasicProperties(
                                                           delivery_mode=2,  # make message persistent
                                                           ))
     '''
+    
     while 1:
         # Authenticate on GitHub and get all repos
         if reauth:
             gh = github3.login(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd'])
         repos = gh.iter_all_repos(since=last_id)
-
+        #repos = gh.search_repos('Java')
         # Crawl repos
         reauth, last_id = start_crawl(repos, db_repos, gh, channel, last_id)
         
-    '''
+    
 
     #Close connection to databse
     client.close()
@@ -185,7 +190,7 @@ def get_queue_channel(host):
 
 def push_to_queue(repo, channel):
     if repo.language in LANGUAGES:
-        body = "%s::%i::%s" % (repo.git_url, repo.id, repo.name)
+        body = "%s::%i::%s" % (repo.html_url, repo.id, repo.name)
         channel.basic_publish(exchange='repo_classifier',
                               routing_key=repo.language,
                               body=body,

@@ -14,6 +14,7 @@ from clustering_cost import calculateClusteringCost
 from os.path import relpath
 import linecache
 import sys
+import bson
 
 #===============================================================================
 # Extract Project DSM with Dtangler https://support.requeste.com/dtangler/index.php
@@ -57,14 +58,24 @@ def run_test(id, path, repo_db):
         s_time = time.time()
         dsmStructure = convertDSMTextTomatrix(matrix)
         response["dsm_packages_convert_time"] = time.time() - s_time
-    
-        prop_cost = calculatePropagationCost(dsmStructure)
-        response["dsm_packages_propagation_cost"] = prop_cost
-
-        clus_cost = calculateClusteringCost(dsmStructure)
-        response["dsm_packages_clustering_cost"] = clus_cost
-    
+        
+        
         response["dsm_packages_size"] = len(dsmStructure)
+        print "DSM packages size: " + str(len(dsmStructure))
+    
+    
+        try:
+        
+            prop_cost = calculatePropagationCost(dsmStructure)
+            response["dsm_packages_propagation_cost"] = prop_cost
+
+            clus_cost = calculateClusteringCost(dsmStructure)
+            response["dsm_packages_clustering_cost"] = clus_cost
+
+        except:
+            print "ERROR getting packages prop and clustering cost"
+    
+
     
         #Compress DSM before saving
         matrix = compressDSMMatrix(matrix)
@@ -85,13 +96,21 @@ def run_test(id, path, repo_db):
         dsmStructure = convertDSMTextTomatrix(matrix)
         response["dsm_classes_convert_time"] = time.time() - s_time
 
-        prop_cost = calculatePropagationCost(dsmStructure)
-        response["dsm_classes_propagation_cost"] = prop_cost
-   
-        clus_cost = calculateClusteringCost(dsmStructure)
-        response["dsm_classes_clustering_cost"] = clus_cost
-    
+
         response["dsm_classes_size"] = len(dsmStructure)
+        print "DSM classes size: " + str(len(dsmStructure))
+
+        try:
+
+            prop_cost = calculatePropagationCost(dsmStructure)
+            response["dsm_classes_propagation_cost"] = prop_cost
+   
+            clus_cost = calculateClusteringCost(dsmStructure)
+            response["dsm_classes_clustering_cost"] = clus_cost
+
+        except:
+            print "ERROR getting packages prop and clustering cost"
+
 
         #Compress DSM before saving
         matrix = compressDSMMatrix(matrix)
@@ -144,6 +163,14 @@ def compressDSMMatrix(matrix):
             #print matrix
             #print "after: " + str(len(matrix))
         print "Compressed: " + str((((len(matrix))-before)/before)*100)
+        
+        try:
+            #This code could deal with other encodings, like latin_1
+            #but that's not the point here
+            matrix.decode('utf-8')
+        except UnicodeDecodeError:
+            matrix = bson.binary.Binary(str(matrix))
+        
         return matrix
     except:
         print "[****ERROR****]:Compressing DSM Matrix"

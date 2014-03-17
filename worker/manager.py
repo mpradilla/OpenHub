@@ -121,15 +121,20 @@ def getCleanCommitList(repo_id, html_url, name):
         if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
             print "limit API exceded"
             GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
-            getCleanCommitList(repo_id, html_url, name)
+            return getCleanCommitList(repo_id, html_url, name)
+    
         
-        #Last commit sha from page
-        sha = json_data[-1]['sha']
         
-        end=false
+       
+        
+        end=False
         #Initial commit in first page, avoid while
-        if json_data[-1]['parents'] is None or len(json_data[-1]['parents'])==0:
-            end=true
+        if len(json_data)==0 or json_data[-1]['parents'] is None or len(json_data[-1]['parents'])==0:
+            end=True
+        else:
+            #Last commit sha from page
+            sha = json_data[-1]['sha']
+        
         while not end:
         
             r = requests.get("https://api.github.com/repositories/"+str(repo_id)+"/commits?path=pom.xml&per_page=100&last_sha="+str(sha), auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
@@ -141,7 +146,7 @@ def getCleanCommitList(repo_id, html_url, name):
                 GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
 
             elif next_data is None or len(next_data)==0:
-                end=true
+                end=True
             else:
                 #Last commit sha from page
                 sha = next_data[-1]['sha']
@@ -164,7 +169,7 @@ def getCleanCommitList(repo_id, html_url, name):
                 print "COMMIT From same date DELETED "
             else:
                 last_day=day
-                pomContent = downloadRepoPomFile(repo_id,name,commit['sha'])
+                pomContent = downloadRepoPomFile(repo_id, name, commit['sha'])
                 tree = ElementTree.fromstring(pomContent)
                 mappings = None
                 try:
@@ -185,6 +190,8 @@ def getCleanCommitList(repo_id, html_url, name):
                     version['last_sha'] = last_sha
                     
                     version['external_dependencies']['use'] = mappings
+                    removed = []
+                    new= []
                     if last_deps is None:
                         version['external_dependencies']['compare_to'] = 0
                     else:
@@ -233,35 +240,46 @@ def downloadRepoPomFile(repo_id, name, sha):
     
     global GH_CUR_USR
     r = requests.get("https://raw.github.com/"+str(name)+"/"+str(sha)+"/pom.xml", auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
-    json_data = json.loads(r.text)
-    delete_repo(REPO_DOWNLOAD_DIR+"pom.xml")
+    #json_data = json.loads(r.text)
+    #delete_repo(REPO_DOWNLOAD_DIR+"pom.xml")
     
-    if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
-        print "limit API exceded"
-        GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
-        return downloadRepoPomFile(repo_id,name,sha)
-    else:
-        return r.content
+    return r.text
 
-def downloadRepo(html_url, sha):
+    #if 'documentation_url' in r and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
+    #    print "limit API exceded"
+    #    GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
+    #    return downloadRepoPomFile(repo_id,name,sha)
+    #else:
+        #return r.content
+
+def downloadRepo(html_url, sha, repo_id):
 
     global GH_CUR_USR
     os.chdir(REPO_DOWNLOAD_DIR)
     
-    downUrl= html_url+'/archive/'+sha+'.zip'
-    r = requests.get(downUrl, auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
-    if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
-        GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
-        r = requests.get(downUrl, auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
+    try:
     
-    z = zipfile.ZipFile(StringIO.StringIO(r.content))
-    z.extractall()
-    return true
+         with time_limit(900):
+    
+             downUrl= html_url+'/archive/'+sha+'.zip'
+             r = requests.get(downUrl, auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
+        #if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
+        #GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
+        #r = requests.get(downUrl, auth=(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd']))
+    
+             z = zipfile.ZipFile(StringIO.StringIO(r.content))
+             z.extractall()
+             os.chdir(BASE_DIR)
+             return True
+    except:
+        
+        collectionBlacklist.save({"_id": repo_id, "value":"DOWNLOAD_TIME"})
+        os.chdir(BASE_DIR)
+        print "TIME LIMIT FOR DOWNLOAD EXCCEEDED"
+        return False
 
-    os.chdir(BASE_DIR)
 
-
-def analyzeVersion(path, version, complete):
+def analyzeVersion(repo_id, path, version, complete):
     '''
         
     :param: path of project already EXTRACTED and ready for analysis
@@ -299,20 +317,26 @@ def analyzeVersion(path, version, complete):
                 # data = {'name': test_name, 'value': "Error:" + str(e)}
                 #version[d][test_name] = {'error': "Error:" + str(e), 'stack_trace': traceback.format_exc()}
                 completed = False
-                    PrintException()
-                    pass
+                PrintException()
+                pass
     
     version['analyzed_at'] = datetime.datetime.now()
     version['state'] = 'completedV3' if completed else 'pending'
 
     delete_repo(path)
 
-def saveVersionAnalysisResult(version, repo_id):
+    return version
 
-    version_json = collectionVersion.find_one({"sha": version["sha"]})
+def saveVersionAnalysisResult(version, repo_id):
+    
+    print version
+
+    version_json = collectionVersion.find_one({"sha": version["sha"]},{"_id":1})
+
+    print "version_json in database: " + str(version_json)
     
     if version_json is None:
-        _id = collectionVersion.insert(version)
+        _id = collectionVersion.save(version)
         print "VERSION ID" + str(_id)
         collectionRepoVersions.insert({"repo":repo_id, "version":_id})
         print "VERSION SAVED"
@@ -321,7 +345,7 @@ def saveVersionAnalysisResult(version, repo_id):
         print "Version already existed, updating the json..."
         collectionVersion.update({"_id":version_json["_id"]}, version)
 
- collection.update({"_id": repo_id}, repo_json)
+    #collection.update({"_id": repo_id}, repo_json)
 
 
 def compareCommits(oldDeps, newDeps):
@@ -371,6 +395,7 @@ def getMappings(rootNode):
                 val = child.text
         
         if val and key:
+            key= key.replace('.','/')
             mapping[key] = val
     
     return mapping
@@ -401,83 +426,145 @@ def callback(ch, method, properties, body):
     """Queue callback function.
     Will be executed when the queue pops this worker
     """
+    global evolution
+    
+    blacklistThis = False
+    
+    
     data = body.split("::")
     html_url = data[0]
     repo_id = int(data[1])
     name = data[2]
+    full_name = html_url.split("/",3)[3]
+    
     print " [x] Received %r" % (data,)
+    print full_name
+    
+    '''
+    repo_json = {
+        "_id" : 889932,
+        "full_name" : "fernandezpablo85/scribe-java",
+        "size" : 9222,
+        "html_url" : "https://github.com/fernandezpablo85/scribe-java",
+        "git_url" : "git://github.com/fernandezpablo85/scribe-java",
+        "name" : "scribe-java",
+        "language" : "Java",
+        "url" : "https://api.github.com/repos/fernandezpablo85/scribe-java",
+    }
+    '''
 
     path = '%s/%s' % (REPO_DOWNLOAD_DIR, name)
     try:
+        
         repo_json = collection.find_one({"_id": repo_id})
         
-        #Download master and check viablitiy of analysis for the project. Avoid get all pom.xml commits analysis if is inpossible to analyze.
-        if downloadRepo(repo_json['html_url'], "master"):
+        print "Downloading pom file..."
+        pomText = downloadRepoPomFile(repo_id, full_name, "master")
         
+        if "<!DOCTYPE html>" in pomText[0:50] or repo_id==24768:
+            #404 Github Page, there is no pom there!
+            collectionBlacklist.save({"_id": repo_id, "value":"NO_POM"})
+            print "REPO HAS NO POM.XML. ADDED TO BLACKLIST"
+        
+        print "Pom download completed."
+        
+        print "Downloading master source code..."
+        if repo_json is None:
+            print "no repo in database"
+        if collectionBlacklist.find_one({"_id": repo_id}):
+            print "PROJECT IN BLACKLIST... skipping analysis"
+    
+        #Download master and check viablitiy of analysis for the project. Avoid get all pom.xml commits analysis if is inpossible to analyze.
+        
+        elif downloadRepo(html_url, "master",repo_id):
+            
+            print "Master download completed."
             #Download porject Master
             path = '%s/%s' % (REPO_DOWNLOAD_DIR, name+'-master')
-            version= {"repo_id":repo_id,"sha":"master","date":"", "html_url":"", "full_name":"", "external_dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"0", "stable":"", "analyze":"", "tags":{}}
+            version= {"repo_id":str(repo_id),"sha":"master","date":"", "html_url":"", "full_name":"", "external_dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"0", "stable":"", "analyze":"", "tags":{}}
             #Try to analyze master
-            version = analyzeVersion(path, version, true)
+            version = analyzeVersion(repo_id, path, version, True)
             #Save result into version
             saveVersionAnalysisResult(version,repo_id)
             
             repo_json["dsm"] = version["dsm"]
             
-            evolution={}
         
             if "error" not in version:
             
-                versions = getCleanCommitList(repo_id, repo_json['html_url'], name)
+                versions = getCleanCommitList(repo_id, repo_json['html_url'], full_name)
                 #versions = getSelectedCommits(versions)
-                for version in versions:
+
+                print "***********************************************"
+                print versions
+                
+                if versions[0]["external_dependencies"]["use"] is not None and versions[-1]["external_dependencies"]["use"] is not None:
                     
-                    if version['analyze']==1:
+                    '''
+                    rem,ne = compareCommits(versions[0]["external_dependencies"]["use"],versions[-1]["external_dependencies"]["use"])
+                    if len(rem)==0 and len(ne)==0:
+                        print "THERE ARE NO DIFFERENCES BETWEEN FIRST AND LAST COMMIT"
+                        blacklistThis=True
+                    '''
+                else:
+                
+                    for version in versions:
+                    
+                        if version['analyze']==1:
+                            
+                            print "ANALYZIND REPO VERSION WITH SHA %s" % (version['sha'])
                         
-                        downloadRepo(repo_json['html_url'], version['sha'])
-                        pathx = '%s/%s' % (REPO_DOWNLOAD_DIR, name+'-'+version['sha'])
-                        respVersion = analyzeVersion(pathx, version, false)
-                        saveVersionAnalysisResult(respVersion,repo_id)
-                        if "error" not in respVersion["dsm"]:
+                            downloadRepo(repo_json['html_url'], version['sha'], repo_id)
+                            pathx = '%s/%s' % (REPO_DOWNLOAD_DIR, name+'-'+version['sha'])
+                            respVersion = analyzeVersion(repo_id,pathx, version, False)
+                            saveVersionAnalysisResult(respVersion,repo_id)
+                            if "error" not in respVersion["dsm"]:
         
-                            evolution["dsm_packages_clustering_cost"].append(respVersion["dsm"]["dsm_packages_clustering_cost"])
-                            evolution["dsm_packages_propagation_cost"].append(respVersion["dsm"]["dsm_packages_propagation_cost"])
-                            evolution["dsm_packages_size"].append(respVersion["dsm"]["dsm_packages_size"])
-                            evolution["dsm_classes_clustering_cost"].append(respVersion["dsm"]["dsm_classes_clustering_cost"])
-                            evolution["dsm_classes_propagation_cost"].append(respVersion["dsm"]["dsm_classes_propagation_cost"])
-                            evolution["dsm_classes_size"].append(respVersion["dsm"]["dsm_classes_size"])
-                            evolution["dsm_process_time"].append(respVersion["dsm"]["dsm_process_time"])
-                            evolution["project_size"].append(respVersion["dsm"]["project_size"])
-                            evolution["dates"].append(respVersion['date'])
+                                evolution["dsm_packages_clustering_cost"].append(respVersion["dsm"]["dsm_packages_clustering_cost"])
+                                evolution["dsm_packages_propagation_cost"].append(respVersion["dsm"]["dsm_packages_propagation_cost"])
+                                evolution["dsm_packages_size"].append(respVersion["dsm"]["dsm_packages_size"])
+                                evolution["dsm_classes_clustering_cost"].append(respVersion["dsm"]["dsm_classes_clustering_cost"])
+                                evolution["dsm_classes_propagation_cost"].append(respVersion["dsm"]["dsm_classes_propagation_cost"])
+                                evolution["dsm_classes_size"].append(respVersion["dsm"]["dsm_classes_size"])
+                                evolution["dsm_process_time"].append(respVersion["dsm"]["dsm_process_time"])
+                                evolution["project_size"].append(respVersion["dsm"]["project_size"])
+                                evolution["dates"].append(respVersion['date'])
         
-                repo_json['evolution'] = evolution
-                completed=true
+                    repo_json['evolution'] = evolution
+                    completed= True
             else:
                 print "ERROR in master version analysis, complete evolution analysis skipped"
                 repo_json['evolution'] = {"error":"Could not analyze master version"}
+             
+            repo_json['analyzed_at'] = datetime.datetime.now()
+                        
+            if len(evolution["dates"])==0 or blacklistThis:
+                collectionBlacklist.save({"_id": repo_id, "value":"NO_EVOLUTION_CHANGES"})
+                repo_json['state'] = 'blacklistV3'
+            elif evolution and len(evolution["dates"])>0:
+                repo_json['state'] = 'completedV3'
+            else:
+                repo_json['state'] = 'pending'
+                        
+
+                        
+            print "***********************************************"
+            print "***********************************************"
+            print evolution
+            print "***********************************************"
+                    
+                    
 
         else:
         
             print "COULD NOT DOWNLOAD MASTER VERSION"
             repo_json['evolution'] = {"error":"Could not analyze master version"}
+            repo_json['state'] = 'blacklistV3'
 
-
-        completed = True
-        
-        if evolution is None or len(evolution["dates"])==0:
-            collectionBlacklist.insert({"_id": repo_id})
-
-        repo_json['analyzed_at'] = datetime.datetime.now()
-        
-        if evolution:
-            repo_json['state'] = 'completedV3'
-        elif completed is None:
-            repo_json['state'] = 'NO_POM'
-        else:
-            repo_json['state'] = 'pending'
 
         print "Saving results to databse..."
         collection.update({"_id": repo_id}, repo_json)
+
 
         print "Deleting files..."
         delete_repo(path)

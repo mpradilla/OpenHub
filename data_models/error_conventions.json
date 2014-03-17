@@ -1,5 +1,14 @@
 {
     "error" : 312,
-	"description": ""
-    
+	"description": " "     
+}
+
+
+
+BLACKLIST
+
+{
+	"_id": 234324
+	"value":"NO_POM", "LARGE_SIZE"  , "NO_EVOLUTION_CHANGES"
+	
 }
