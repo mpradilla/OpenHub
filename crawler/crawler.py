@@ -7,6 +7,7 @@ import pika
 from github3.models import GitHubError
 from pymongo import MongoClient
 
+
 DATA_PATH = '../data'
 
 LANGUAGES = []
@@ -59,7 +60,7 @@ def main(start_from=None):
                           properties=pika.BasicProperties(
                                                           delivery_mode=2,  # make message persistent
                                                           ))
-    '''
+   
     
     while 1:
         # Authenticate on GitHub and get all repos
@@ -70,14 +71,30 @@ def main(start_from=None):
         # Crawl repos
         reauth, last_id = start_crawl(repos, db_repos, gh, channel, last_id)
         
+    '''
+    addReposToQueue(db_repos,channel)
     
-
     #Close connection to databse
     client.close()
 
     #Close connection to queue
     channel.close()
     connection.close()
+
+def addReposToQueue(db_repos, channel):
+
+    for repo in db_repos.find({"language": "Java"}):
+        
+        
+        body = "%s::%i::%s" % (repo["html_url"], repo["_id"], repo["name"])
+        channel.basic_publish(exchange='repo_classifier',
+                              routing_key="Java",
+                              body=body,
+                              properties=pika.BasicProperties(
+                                                              delivery_mode=2,  # make message persistent
+                                                              ))
+        print " [*] Pushed to queue:", body
+        #push_to_queue(repo, channel)
 
 
 def start_crawl(repos, db_repos, gh, channel, last_id):
