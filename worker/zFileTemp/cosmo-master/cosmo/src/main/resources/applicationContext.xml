@@ -1,0 +1,911 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Copyright 2005-2006 Open Source Applications Foundation
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+-->
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:aop="http://www.springframework.org/schema/aop"
+    xmlns:tx="http://www.springframework.org/schema/tx"
+    xsi:schemaLocation="
+    http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.0.xsd
+    http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-2.0.xsd
+    http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-2.0.xsd">
+
+  <bean id="messageSource"
+        class="org.springframework.context.support.ResourceBundleMessageSource">
+    <property name="basename">
+      <value>MessageResources</value>
+    </property>
+  </bean>
+
+  <!-- load the cosmo properties file and make the cosmo
+       config properties available to other spring beans -->
+
+  <bean id="cosmoConfigPath"
+        class="org.springframework.jndi.JndiObjectFactoryBean">
+    <property name="jndiName">
+      <value>cosmo/config</value>
+    </property>
+    <property name="resourceRef">
+      <value>true</value>
+    </property>
+  </bean>
+
+  <bean id="propertyPlaceholderConfigurer"
+        class="org.osaf.cosmo.spring.CosmoPropertyPlaceholderConfigurer">
+    <property name="locations">
+      <list>
+        <ref local="cosmoConfigPath"/>
+      </list>
+    </property>
+  </bean>
+
+  <!-- resources needed to send mail -->
+
+  <bean id="mailSession"
+        class="org.springframework.jndi.JndiObjectFactoryBean">
+    <property name="jndiName">
+      <value>mail/cosmo</value>
+    </property>
+    <property name="resourceRef">
+      <value>true</value>
+    </property>
+  </bean>
+
+  <bean id="mailSender"
+        class="org.springframework.mail.javamail.JavaMailSenderImpl">
+    <property name="session">
+      <ref local="mailSession"/>
+    </property>
+  </bean>
+
+  <!-- resources needed for database access -->
+
+  <bean id="jdbcDataSource"
+        class="org.springframework.jndi.JndiObjectFactoryBean">
+    <property name="jndiName" value="java:comp/env/jdbc/cosmo"/>
+  </bean>
+
+  <bean id="defaultLobHandler"
+        class="org.osaf.cosmo.hibernate.CosmoLobHandler">
+  </bean>
+
+  <bean id="validatePreUpdateEventListener"
+      class="org.hibernate.validator.event.ValidatePreUpdateEventListener"/>
+
+  <bean id="validatePreInsertEventListener"
+      class="org.hibernate.validator.event.ValidatePreInsertEventListener"/>
+
+  
+  <bean id="auditableObjectInterceptor"
+      class="org.osaf.cosmo.model.hibernate.AuditableObjectInterceptor"/>
+      
+  <bean id="eventStampInterceptor"
+      class="org.osaf.cosmo.model.hibernate.EventStampInterceptor"/>
+  
+  <bean id="cosmoHibernateInterceptor"
+      class="org.osaf.cosmo.hibernate.CompoundInterceptor">
+      <property name="interceptors">
+        <list>
+            <ref local="auditableObjectInterceptor"/>
+            <ref local="eventStampInterceptor"/>
+        </list>
+    </property>
+  </bean>
+      
+  <bean id="cosmoEntityFactory"
+      class="org.osaf.cosmo.model.hibernate.HibEntityFactory"/>
+
+  <bean id="sessionFactory"
+        class="org.springframework.orm.hibernate3.annotation.AnnotationSessionFactoryBean">
+    <property name="lobHandler" ref="defaultLobHandler" />
+    <property name="annotatedPackages">
+        <list>
+            <value>org.osaf.cosmo.model.hibernate</value>
+        </list>
+    </property>
+    <property name="annotatedClasses">
+        <list>
+            <value>org.osaf.cosmo.model.hibernate.HibAttribute</value>
+            <value>org.osaf.cosmo.model.hibernate.HibAttributeTombstone</value>
+            <value>org.osaf.cosmo.model.hibernate.HibAvailabilityItem</value>
+            <value>org.osaf.cosmo.model.hibernate.HibBaseEventStamp</value>
+            <value>org.osaf.cosmo.model.hibernate.HibBinaryAttribute</value>
+            <value>org.osaf.cosmo.model.hibernate.HibBooleanAttribute</value>
+            <value>org.osaf.cosmo.model.hibernate.HibCalendarAttribute</value>
+            <value>org.osaf.cosmo.model.hibernate.HibCalendarCollectionStamp</value>			
+            <value>org.osaf.cosmo.model.hibernate.HibCollectionItem</value>
+            <value>org.osaf.cosmo.model.hibernate.HibCollectionSubscription</value>
+            <value>org.osaf.cosmo.model.hibernate.HibContentData</value>
+            <value>org.osaf.cosmo.model.hibernate.HibContentItem</value>
+            <value>org.osaf.cosmo.model.hibernate.HibDateAttribute</value>
+            <value>org.osaf.cosmo.model.hibernate.HibDecimalAttribute</value>
+            <value>org.osaf.cosmo.model.hibernate.HibDictionaryAttribute</value>
+            <value>org.osaf.cosmo.model.hibernate.HibEventExceptionStamp</value>
+            <value>org.osaf.cosmo.model.hibernate.HibEventStamp</value>
+            <value>org.osaf.cosmo.model.hibernate.HibFileItem</value>
+            <value>org.osaf.cosmo.model.hibernate.HibFreeBusyItem</value>
+            <value>org.osaf.cosmo.model.hibernate.HibHomeCollectionItem</value>
+            <value>org.osaf.cosmo.model.hibernate.HibICalendarAttribute</value>
+            <value>org.osaf.cosmo.model.hibernate.HibICalendarItem</value>
+            <value>org.osaf.cosmo.model.hibernate.HibIntegerAttribute</value>
+            <value>org.osaf.cosmo.model.hibernate.HibItem</value>
+            <value>org.osaf.cosmo.model.hibernate.HibItemTombstone</value>
+            <value>org.osaf.cosmo.model.hibernate.HibMessageStamp</value>
+            <value>org.osaf.cosmo.model.hibernate.HibMultiValueStringAttribute</value>
+            <value>org.osaf.cosmo.model.hibernate.HibNoteItem</value>
+            <value>org.osaf.cosmo.model.hibernate.HibPasswordRecovery</value>
+            <value>org.osaf.cosmo.model.hibernate.HibPreference</value>
+            <value>org.osaf.cosmo.model.hibernate.HibServerProperty</value>
+            <value>org.osaf.cosmo.model.hibernate.HibStringAttribute</value>
+            <value>org.osaf.cosmo.model.hibernate.HibStamp</value>
+            <value>org.osaf.cosmo.model.hibernate.HibStampTombstone</value>
+            <value>org.osaf.cosmo.model.hibernate.HibTaskStamp</value>
+            <value>org.osaf.cosmo.model.hibernate.HibTextAttribute</value>
+            <value>org.osaf.cosmo.model.hibernate.HibTicket</value>
+            <value>org.osaf.cosmo.model.hibernate.HibTimestampAttribute</value>
+            <value>org.osaf.cosmo.model.hibernate.HibTombstone</value>
+            <value>org.osaf.cosmo.model.hibernate.HibUser</value>
+            <value>org.osaf.cosmo.model.hibernate.HibXmlAttribute</value>
+        </list>
+    </property>
+    <property name="entityInterceptor">
+      <ref bean="cosmoHibernateInterceptor"/>
+    </property>
+    <property name="eventListeners">
+      <map>
+        <entry key="pre-update">
+          <ref local="validatePreUpdateEventListener"/>
+        </entry>
+        <entry key="pre-insert">
+          <ref local="validatePreInsertEventListener"/>
+        </entry>
+      </map>
+    </property>
+    <property name="hibernateProperties">
+      <props>
+        <prop key="hibernate.generate_statistics">true</prop>
+        <prop key="hibernate.cache.use_query_cache">true</prop>
+        <prop key="hibernate.cache.use_second_level_cache">true</prop>
+        <prop key="hibernate.cache.provider_class">org.hibernate.cache.EhCacheProvider</prop>
+        <prop key="hibernate.show_sql">false</prop>
+        <prop key="hibernate.jdbc.batch_size">25</prop>
+        <!-- configure in cosmo.propeties -->
+        <prop key="hibernate.dialect">${cosmo.hibernate.dialect}</prop>
+      </props>
+    </property>
+    <property name="dataSource">
+      <ref bean="jdbcDataSource"/>
+    </property>
+  </bean>
+
+  <!-- Define MBeans to export -->
+  <bean id="exporter" class="org.springframework.jmx.export.MBeanExporter">
+    <property name="beans">
+      <map>
+        <entry key="cosmo:name=hibernateStatistics" value-ref="hibernateStatsBean"/>
+      </map>
+    </property>
+  </bean>
+
+  <!-- Hibernate statistics MBean -->
+  <bean id="hibernateStatsBean" class="org.osaf.cosmo.hibernate.jmx.CosmoHibernateService">
+    <property name="sessionFactory">
+      <ref bean="sessionFactory"/>  
+    </property>
+  </bean>
+  
+  <!--  Transaction Definitions -->
+  
+  <!-- Transaction manager for a single Hibernate SessionFactory
+       (alternative to JTA) -->
+  <bean id="transactionManager"
+        class="org.springframework.orm.hibernate3.HibernateTransactionManager">
+    <property name="sessionFactory">
+      <ref local="sessionFactory" />
+    </property>
+  </bean>
+  
+  <!-- the transactional advice -->
+  <tx:advice id="txAdvice" transaction-manager="transactionManager">
+    <!-- the transactional semantics... -->
+    <tx:attributes>
+      <!-- getPasswordRecovery is only 'get' thats not read-only -->
+      <tx:method name="getPasswordRecovery"/>
+      
+      <!--  checked exception OverlordDeletionException should cause rollback  -->
+      <tx:method name="remove*" rollback-for="OverlordDeletionException"/>
+
+      <!-- all methods starting with 'get', 'load', and 'find' are read-only -->
+      <tx:method name="get*" read-only="true"/>
+      <tx:method name="load*" read-only="true"/>
+      <tx:method name="find*" read-only="true"/>
+      
+      <!-- other methods use the default transaction settings -->
+      <tx:method name="*"/>
+    </tx:attributes>
+  </tx:advice>
+  
+  <!-- Timing advice, useful for timing operations -->
+  <bean id="timingAdvice" class="org.springframework.aop.interceptor.PerformanceMonitorInterceptor">
+    <property name="loggerName" value="org.osaf.cosmo.perf" />
+  </bean>
+ 
+  <!--  define advice for all service methods -->
+  <aop:config>
+      <aop:pointcut id="serviceOperation"
+                  expression="execution(* org.osaf.cosmo.service.*Service.*(..))"/>
+    
+      <aop:advisor pointcut-ref="serviceOperation" order="1" advice-ref="timingAdvice"/>
+      <aop:advisor pointcut-ref="serviceOperation" order="2" advice-ref="txAdvice"/>
+  </aop:config>
+  
+ 
+  <!-- data access objects -->
+
+  <bean id="hibernateTemplate"
+        class="org.springframework.orm.hibernate3.HibernateTemplate">
+    <constructor-arg><ref bean="sessionFactory"/></constructor-arg>
+  </bean>
+
+  <bean id="itemPathTranslator"
+        class="org.osaf.cosmo.dao.hibernate.DefaultItemPathTranslator">
+    <constructor-arg><ref bean="hibernateTemplate"/></constructor-arg>
+  </bean>
+
+  <bean id="idGenerator"
+        class="org.apache.commons.id.uuid.VersionFourGenerator" />
+  
+  <bean id="ticketKeyGenerator"
+        class="org.apache.commons.id.random.SessionIdGenerator" />
+
+  <bean id="serverPropertyDao"
+        class="org.osaf.cosmo.dao.hibernate.ServerPropertyDaoImpl"
+        init-method="init"
+        destroy-method="destroy">
+    <property name="sessionFactory">
+      <ref bean="sessionFactory" />
+    </property>
+  </bean>
+
+  <bean id="standardItemFilterProcessor"
+        class="org.osaf.cosmo.dao.hibernate.query.StandardItemFilterProcessor" />
+
+  <bean id="contentDao"
+        class="org.osaf.cosmo.dao.hibernate.ContentDaoImpl"
+        init-method="init"
+        destroy-method="destroy">
+    <property name="sessionFactory">
+      <ref bean="sessionFactory" />
+    </property>
+    <property name="itemPathTranslator">
+      <ref bean="itemPathTranslator" />
+    </property>
+    <property name="idGenerator">
+      <ref local="idGenerator" />
+    </property>
+    <property name="ticketKeyGenerator">
+      <ref local="ticketKeyGenerator" />
+    </property>
+    <property name="itemFilterProcessor">
+      <ref local="standardItemFilterProcessor" />
+    </property>
+  </bean>
+
+  <bean id="userDao"
+        class="org.osaf.cosmo.dao.hibernate.UserDaoImpl"
+        init-method="init"
+        destroy-method="destroy">
+    <property name="sessionFactory">
+      <ref bean="sessionFactory" />
+    </property>
+    <property name="idGenerator">
+      <ref local="idGenerator" />
+    </property>
+  </bean>
+
+  <bean id="calendarDao"
+        class="org.osaf.cosmo.dao.hibernate.CalendarDaoImpl"
+        init-method="init">
+    <property name="sessionFactory">
+      <ref bean="sessionFactory" />
+    </property>
+    <property name="itemFilterProcessor">
+      <ref local="standardItemFilterProcessor" />
+    </property>
+  </bean>
+
+  <!-- services -->
+
+  <bean id="passwordGenerator"
+        class="org.apache.commons.id.random.SessionIdGenerator"/>
+
+  <bean id="accountActivator"
+        class="org.osaf.cosmo.service.account.EmailAccountActivator">
+    <property name="idGenerator">
+      <ref local="idGenerator" />
+    </property>
+    <property name="mailSender">
+      <ref local="mailSender" />
+    </property>
+    <property name="messageSource">
+      <ref local="messageSource" />
+    </property>
+    <property name="required">
+        <value>${cosmo.service.account.requireActivation}</value>
+    </property>
+  </bean>
+  
+  <bean id="passwordRecoverer"
+          class="org.osaf.cosmo.service.account.EmailPasswordRecoverer">
+          
+    <property name="idGenerator">
+      <ref local="idGenerator" />
+    </property>
+    <property name="mailSender">
+      <ref local="mailSender" />
+    </property>
+    <property name="messageSource">
+      <ref local="messageSource" />
+    </property>
+  </bean>
+
+  <bean id="ootbHelper"
+        class="org.osaf.cosmo.service.account.OutOfTheBoxHelper">
+    <property name="contentDao">
+      <ref local="contentDao"/>
+    </property>
+    <property name="messageSource">
+      <ref local="messageSource" />
+    </property>
+    <property name="entityFactory">
+      <ref bean="cosmoEntityFactory"/>
+    </property>
+  </bean>
+
+  <bean id="triageStatusQueryProcessor"
+      class="org.osaf.cosmo.service.impl.StandardTriageStatusQueryProcessor">
+    <property name="contentDao">
+      <ref local="contentDao" />
+    </property>
+  </bean>
+  
+
+  <bean id="userService"
+        class="org.osaf.cosmo.service.impl.StandardUserService"
+        init-method="init"
+        destroy-method="destroy">
+    <property name="contentDao">
+      <ref bean="contentDao"/>
+    </property>
+    <property name="userDao">
+      <ref bean="userDao"/>
+    </property>
+    <property name="passwordGenerator">
+      <ref bean="passwordGenerator"/>
+    </property>
+  </bean>
+
+  <bean id="contentLockManager"
+        class="org.osaf.cosmo.service.lock.SingleVMLockManager"/>
+
+  <bean id="contentService"
+        class="org.osaf.cosmo.service.impl.StandardContentService"
+        init-method="init"
+        destroy-method="destroy">
+    <property name="calendarDao">
+      <ref bean="calendarDao"/>
+    </property>
+    <property name="contentDao">
+      <ref bean="contentDao"/>
+    </property>
+    <property name="lockManager">
+      <ref bean="contentLockManager"/>
+    </property>
+    <property name="triageStatusQueryProcessor">
+      <ref bean="triageStatusQueryProcessor"/>
+    </property>
+  </bean>
+
+  <bean id="serverPropertyService"
+        class="org.osaf.cosmo.service.impl.StandardServerPropertyService"
+        init-method="init"
+        destroy-method="destroy">
+    <property name="serverPropertyDao">
+      <ref bean="serverPropertyDao"/>
+    </property>
+  </bean>
+
+  <bean id="calendarQueryProcessor"
+        class="org.osaf.cosmo.calendar.query.impl.StandardCalendarQueryProcessor">
+    <property name="calendarDao">
+      <ref bean="calendarDao"/>
+    </property>
+  </bean>
+  
+  <!-- general protocol/interface resources -->
+
+  <bean id="serviceLocatorFactory"
+        class="org.osaf.cosmo.server.ServiceLocatorFactory">
+    <property name="atomPrefix"><value>/atom</value></property>
+    <property name="cmpPrefix"><value>/cmp</value></property>
+    <property name="davPrefix"><value>/dav</value></property>
+    <property name="morseCodePrefix"><value>/mc</value></property>
+    <property name="pimPrefix"><value>/pim</value></property>
+    <property name="webcalPrefix"><value>/webcal</value></property>
+    <property name="securityManager">
+      <ref bean="securityManager"/>
+    </property>
+  </bean>
+
+  <!-- dav protocol resources -->
+
+  <bean id="davResourceFactory"
+        class="org.osaf.cosmo.dav.StandardResourceFactory">
+    <constructor-arg><ref local="contentService"/></constructor-arg>    
+    <constructor-arg><ref local="userService"/></constructor-arg>
+    <constructor-arg><ref local="securityManager"/></constructor-arg>
+    <constructor-arg><ref local="cosmoEntityFactory"/></constructor-arg>
+    <constructor-arg><ref local="calendarQueryProcessor"/></constructor-arg>
+  </bean>
+
+  <bean id="davResourceLocatorFactory"
+        class="org.osaf.cosmo.dav.StandardResourceLocatorFactory"/>
+
+  <bean id="dav"
+        class="org.osaf.cosmo.dav.servlet.StandardRequestHandler">
+    <property name="resourceLocatorFactory">
+      <ref bean="davResourceLocatorFactory"/>
+    </property>
+    <property name="resourceFactory">
+      <ref bean="davResourceFactory"/>
+    </property>
+    <property name="entityFactory">
+      <ref bean="cosmoEntityFactory"/>
+    </property>
+  </bean>
+
+  <!-- atom protocol resources -->
+
+  <bean id="abdera" class="org.apache.abdera.Abdera"/>
+
+  <bean id="atomBaseProvider" class="org.osaf.cosmo.atom.provider.BaseProvider"
+        init-method="init" abstract="true">
+    <property name="abdera"><ref local="abdera"/></property>
+    <property name="generatorFactory">
+      <bean class="org.osaf.cosmo.atom.generator.StandardGeneratorFactory"
+            init-method="init">
+        <property name="abdera"><ref local="abdera"/></property>
+        <property name="contentFactory">
+          <bean class="org.osaf.cosmo.atom.generator.ContentFactory"/>
+        </property>
+        <property name="contentService">
+          <ref local="contentService"/>
+        </property>
+        <property name="securityManager">
+          <ref local="securityManager"/>
+        </property>
+      </bean>
+    </property>
+    <property name="serviceLocatorFactory">
+      <ref local="serviceLocatorFactory"/>
+    </property>
+    <property name="entityFactory">
+      <ref bean="cosmoEntityFactory"/>
+    </property>
+  </bean>
+
+  <bean id="atomStandardProcessorFactory"
+        class="org.osaf.cosmo.atom.processor.StandardProcessorFactory">
+    <property name="entityFactory">
+      <ref bean="cosmoEntityFactory"/>
+    </property>
+  </bean>
+
+  <bean id="atomItemProvider"
+        class="org.osaf.cosmo.atom.provider.ItemProvider"
+        init-method="init" parent="atomBaseProvider">
+    <property name="processorFactory">
+      <ref local="atomStandardProcessorFactory"/>
+    </property>
+    <property name="contentService">
+      <ref local="contentService"/>
+    </property>
+  </bean>
+  
+  <bean id="atomDetachedItemProvider"
+        class="org.osaf.cosmo.atom.provider.DetachedItemProvider"
+        init-method="init" parent="atomItemProvider"/>
+
+  <bean id="atomExpandedItemProvider"
+        class="org.osaf.cosmo.atom.provider.ExpandedItemProvider"
+        init-method="init" parent="atomItemProvider"/>
+
+  <bean id="atomSubscriptionProvider"
+        class="org.osaf.cosmo.atom.provider.SubscriptionProvider"
+        init-method="init" parent="atomBaseProvider">
+    <property name="userService">
+      <ref local="userService"/>
+    </property>
+  </bean>
+
+  <bean id="atomPreferencesProvider"
+        class="org.osaf.cosmo.atom.provider.PreferencesProvider"
+        init-method="init" parent="atomBaseProvider">
+    <property name="userService">
+      <ref local="userService"/>
+    </property>
+  </bean>
+
+  <bean id="atomUserProvider" class="org.osaf.cosmo.atom.provider.UserProvider"
+        init-method="init" parent="atomBaseProvider"/>
+
+  <bean id="atomServiceContext"
+        class="org.osaf.cosmo.atom.StandardServiceContext">
+    <property name="abdera"><ref local="abdera"/></property>
+    <property name="providerManager">
+      <bean class="org.osaf.cosmo.atom.provider.StandardProviderManager"
+            init-method="init">
+        <property name="itemProvider">
+          <ref local="atomItemProvider"/>
+        </property>
+        <property name="detachedItemProvider">
+          <ref local="atomDetachedItemProvider"/>
+        </property>
+        <property name="expandedItemProvider">
+          <ref local="atomExpandedItemProvider"/>
+        </property>
+        <property name="subscriptionProvider">
+          <ref local="atomSubscriptionProvider"/>
+        </property>
+        <property name="preferencesProvider">
+          <ref local="atomPreferencesProvider"/>
+        </property>
+        <property name="userProvider">
+          <ref local="atomUserProvider"/>
+        </property>
+      </bean>
+    </property>
+    <property name="handlerManager">
+      <bean class="org.osaf.cosmo.atom.servlet.StandardRequestHandlerManager"
+            init-method="init">
+        <property name="requestHandler">
+          <bean class="org.osaf.cosmo.atom.servlet.StandardRequestHandler"/>
+        </property>
+      </bean>
+    </property>
+    <property name="targetResolver">
+      <bean class="org.osaf.cosmo.atom.provider.StandardTargetResolver"
+            init-method="init">
+        <property name="contentService">
+          <ref local="contentService"/>
+        </property>
+        <property name="userService">
+          <ref local="userService"/>
+        </property>
+      </bean>
+    </property>
+  </bean>
+
+  <!-- morse code protocol resources -->
+
+  <bean id="morseCodeController"
+        class="org.osaf.cosmo.mc.StandardMorseCodeController"
+        init-method="init">
+    <property name="contentService">
+      <ref local="contentService"/>
+    </property>
+    <property name="userService">
+      <ref local="userService"/>
+    </property>
+    <property name="securityManager">
+      <ref local="securityManager"/>
+    </property>
+    <property name="entityFactory">
+      <ref bean="cosmoEntityFactory"/>
+    </property>
+  </bean>
+
+  <!-- a helper for setting up the database schema and loading seed
+       data -->
+
+  <bean id="dbInitializer"
+        class="org.osaf.cosmo.db.DbInitializer">
+    <property name="userService">
+      <ref bean="userService"/>
+    </property>
+    <property name="serverPropertyService">
+      <ref bean="serverPropertyService"/>
+    </property>
+    <property name="localSessionFactory">
+      <ref bean="&amp;sessionFactory"/>
+    </property>
+    <property name="dataSource">
+      <ref bean="jdbcDataSource"/>
+    </property>
+    <property name="validateSchema">
+      <value>true</value>
+    </property>
+    <property name="rootLoginUrl">
+      <value>/account/view</value>
+    </property>
+    <property name="entityFactory">
+      <ref bean="cosmoEntityFactory"/>
+    </property>
+  </bean>
+
+  <!-- the servlet context configurer, which is used instead of
+       spring's servlet context export mechanism because config
+       information needs to be loaded from the database -->
+
+  <bean id="servletContextConfigurer"
+        class="org.osaf.cosmo.ui.config.ServletContextConfigurer">
+    <property name="userService">
+      <ref bean="userService"/>
+    </property>
+  </bean>
+
+  <!-- authentication resources -->
+
+  <bean id="userDetailsService"
+        class="org.osaf.cosmo.acegisecurity.userdetails.CosmoUserDetailsService">
+     <property name="userDao">
+       <ref bean="userDao"/>
+     </property>
+  </bean>
+
+  <bean id="passwordEncoder"
+        class="org.acegisecurity.providers.encoding.Md5PasswordEncoder"/>
+
+  <bean id="daoAuthenticationProvider"
+        class="org.acegisecurity.providers.dao.DaoAuthenticationProvider">
+    <property name="userDetailsService">
+      <ref local="userDetailsService"/>
+    </property>
+    <property name="passwordEncoder">
+      <ref local="passwordEncoder"/>
+    </property>
+  </bean>
+
+  <bean id="anonymousAuthenticationProvider"
+        class="org.acegisecurity.providers.anonymous.AnonymousAuthenticationProvider">
+    <property name="key">
+      <value>badgerbadgerbadger</value>
+    </property>
+  </bean>
+
+  <bean id="ticketAuthenticationProvider"
+        class="org.osaf.cosmo.acegisecurity.providers.ticket.TicketAuthenticationProvider">
+    <property name="contentService">
+      <ref bean="contentService"/>
+    </property>
+  </bean>
+
+  <bean id="authenticationManager"
+        class="org.acegisecurity.providers.ProviderManager">
+    <property name="providers">
+      <list>
+        <ref local="daoAuthenticationProvider"/>
+        <ref local="anonymousAuthenticationProvider"/>
+        <ref local="ticketAuthenticationProvider"/>
+      </list>
+    </property>
+  </bean>
+
+  <!-- authorization resources -->
+
+  <bean id="ticketVoter"
+        class="org.osaf.cosmo.acegisecurity.providers.ticket.TicketVoter"/>
+
+  <bean id="ownerVoter"
+        class="org.osaf.cosmo.acegisecurity.providers.owner.OwnerVoter">
+    <property name="contentService">
+      <ref bean="contentService"/>
+    </property>
+    <property name="userService">
+      <ref bean="userService"/>
+    </property>
+  </bean>
+
+  <bean id="roleVoter" class="org.acegisecurity.vote.RoleVoter"/>
+
+  <bean id="defaultAccessDecisionManager"
+        class="org.acegisecurity.vote.AffirmativeBased">
+    <property name="allowIfAllAbstainDecisions">
+      <value>false</value>
+    </property>
+    <property name="decisionVoters">
+      <list>
+        <ref bean="roleVoter"/>
+      </list>
+    </property>
+  </bean>
+
+  <!-- security facade resources -->
+
+  <bean id="securityManager"
+        class="org.osaf.cosmo.security.impl.CosmoSecurityManagerImpl">
+    <property name="authenticationManager">
+      <ref local="authenticationManager"/>
+    </property>
+  </bean>
+
+  <bean id="defaultFilterInvocationInterceptor"
+         class="org.acegisecurity.intercept.web.FilterSecurityInterceptor">
+     <property name="authenticationManager">
+       <ref bean="authenticationManager"/>
+     </property>
+     <property name="accessDecisionManager">
+       <ref bean="defaultAccessDecisionManager"/>
+     </property>
+     <property name="objectDefinitionSource">
+       <value>
+         CONVERT_URL_TO_LOWERCASE_BEFORE_COMPARISON
+         PATTERN_TYPE_APACHE_ANT
+         /account/new=ROLE_ANONYMOUS
+         /account/signup=ROLE_ANONYMOUS
+         /account=ROLE_ROOT,ROLE_USER
+         /account/view=ROLE_ROOT,ROLE_USER
+         /account/update=ROLE_ROOT,ROLE_USER
+         /account/activate/*=ROLE_ANONYMOUS, ROLE_USER, ROLE_ROOT
+         /account/password/reset/*=ROLE_ANONYMOUS, ROLE_USER, ROLE_ROOT
+         /account/password/recover=ROLE_ANONYMOUS, ROLE_USER, ROLE_ROOT
+         /account/activation/recover=ROLE_ANONYMOUS, ROLE_USER, ROLE_ROOT
+         /login=ROLE_ANONYMOUS, ROLE_USER, ROLE_ROOT
+         /signup=ROLE_ANONYMOUS
+         /welcome=ROLE_ANONYMOUS, ROLE_USER, ROLE_ROOT
+         /security_check=ROLE_ANONYMOUS
+         /loginfailed=ROLE_ANONYMOUS
+         /logout=ROLE_ROOT,ROLE_USER
+         /browse/**=ROLE_USER, ROLE_ROOT
+         /admin/status/**=ROLE_ROOT
+         /admin/user/**=ROLE_ROOT
+         /error=ROLE_ANONYMOUS,ROLE_USER,ROLE_ROOT
+         /error/**=ROLE_ANONYMOUS,ROLE_USER,ROLE_ROOT
+         /help/privacy=ROLE_ROOT,ROLE_USER,ROLE_ANONYMOUS
+         /help/about=ROLE_ROOT,ROLE_USER,ROLE_ANONYMOUS
+         /help/tos=ROLE_ROOT,ROLE_USER,ROLE_ANONYMOUS
+         /help=ROLE_ROOT,ROLE_USER
+         /help/**=ROLE_ROOT,ROLE_USER
+         /**=ROLE_ROOT
+       </value>
+     </property>
+   </bean>
+
+   <!-- filter chain that kicks off request-time processing -->
+
+   <bean id="defaultFilterChainProxy"
+        class="org.acegisecurity.util.FilterChainProxy">
+    <property name="filterInvocationDefinitionSource">
+      <value>
+        CONVERT_URL_TO_LOWERCASE_BEFORE_COMPARISON
+        PATTERN_TYPE_APACHE_ANT
+        /**=defaultHttpSessionContextIntegrationFilter,defaultAnonymousProcessingFilter,defaultExceptionTranslationFilter,defaultFilterInvocationInterceptor
+
+      </value>
+    </property>
+  </bean>
+
+   <bean id="webuiFilterChainProxy"
+        class="org.acegisecurity.util.FilterChainProxy">
+    <property name="filterInvocationDefinitionSource">
+      <value>
+        CONVERT_URL_TO_LOWERCASE_BEFORE_COMPARISON
+        PATTERN_TYPE_APACHE_ANT
+        /**=defaultHttpSessionContextIntegrationFilter,webuiFormBasedProcessingFilter,defaultExceptionTranslationFilter,defaultFilterInvocationInterceptor
+
+      </value>
+    </property>
+  </bean>
+
+  <!-- filter that integrates SecurityContext into HTTP Session -->
+
+  <bean id="defaultHttpSessionContextIntegrationFilter"
+        class="org.acegisecurity.context.HttpSessionContextIntegrationFilter"/>
+
+  <!-- filter that performs form-based authentication -->
+
+  <bean id="defaultFormBasedAuthenticationEntryPoint"
+        class="org.acegisecurity.ui.webapp.AuthenticationProcessingFilterEntryPoint">
+    <property name="loginFormUrl">
+      <value>/login</value>
+    </property>
+    <property name="forceHttps">
+      <value>false</value>
+    </property>
+  </bean>
+
+  <bean id="webuiFormBasedProcessingFilter"
+        class="org.osaf.cosmo.acegisecurity.ui.webapp.CosmoAuthenticationProcessingFilter">
+    <property name="authenticationManager">
+      <ref bean="authenticationManager"/>
+    </property>
+    <property name="filterProcessesUrl">
+      <value>/security_check</value>
+    </property>
+    <property name="authenticationFailureUrl">
+      <value>/loginfailed</value>
+    </property>
+    <property name="cosmoDefaultLoginUrl">
+      <value>/pim</value>
+    </property>
+    
+  </bean>
+
+  <!-- filter that performs anonymous authentication -->
+
+  <bean id="defaultAnonymousProcessingFilter"
+        class="org.acegisecurity.providers.anonymous.AnonymousProcessingFilter">
+    <property name="key">
+      <value>badgerbadgerbadger</value>
+    </property>
+    <property name="userAttribute">
+      <value>anonymous,ROLE_ANONYMOUS</value>
+    </property>
+  </bean>
+
+  <!-- filter that converts authen/authz exceptions to web pages -->
+
+  <bean id="defaultExceptionTranslationFilter"
+        class="org.acegisecurity.ui.ExceptionTranslationFilter">
+    <property name="authenticationEntryPoint">
+      <ref local="defaultFormBasedAuthenticationEntryPoint"/>
+    </property>
+  </bean>
+
+  <!-- security beans for protocol access -->
+
+  <bean id="protocolHttpRequestContextIntegrationFilter"
+        class="org.osaf.cosmo.acegisecurity.context.HttpRequestContextIntegrationFilter"/>
+
+  <bean id="protocolAuthenticationEntryPoint"
+        class="org.osaf.cosmo.acegisecurity.ui.CosmoAuthenticationEntryPoint"/>
+
+  <bean id="protocolTicketProcessingFilter"
+        class="org.osaf.cosmo.acegisecurity.providers.ticket.TicketProcessingFilter"/>
+
+  <bean id="protocolBasicProcessingFilter"
+        class="org.acegisecurity.ui.basicauth.BasicProcessingFilter">
+    <property name="authenticationManager">
+      <ref bean="authenticationManager"/>
+    </property>
+    <property name="authenticationEntryPoint">
+      <ref local="protocolAuthenticationEntryPoint"/>
+    </property>
+  </bean>
+
+  <bean id="protocolExceptionTranslationFilter"
+        class="org.acegisecurity.ui.ExceptionTranslationFilter">
+    <property name="authenticationEntryPoint">
+      <ref bean="protocolAuthenticationEntryPoint"/>
+    </property>
+    <property name="createSessionAllowed" value="false"/>
+  </bean>
+
+  <!-- Logging resources -->
+  <bean id="httpLoggingFormat" class="java.lang.String">
+    <constructor-arg type="java.lang.String"><value>${cosmo.log.HttpLoggingFilter.format}</value></constructor-arg>
+  </bean>
+   
+  <!-- give JSP tag functions access to config properties -->
+  <bean id="jspConfigProps" class="org.springframework.beans.factory.config.MethodInvokingFactoryBean">
+    <property name="targetClass"><value>org.osaf.cosmo.ui.TagFunctions</value></property>
+    <property name="targetMethod"><value>setPropertyPlaceholderConfigurer</value></property>
+    <property name="arguments">
+        <list><ref bean="propertyPlaceholderConfigurer"/></list>
+    </property>
+  </bean>
+</beans>

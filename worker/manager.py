@@ -21,6 +21,7 @@ from xml.etree import ElementTree
 import github3
 from bson.objectid import ObjectId
 import pymongo
+import collections
 
 DATA_PATH = '../data'
 BASE_DIR = ''
@@ -51,8 +52,9 @@ collection = ''
 collectionVersion =''
 collectionRepoVersions =''
 collectionBlacklist = ''
-evolution = {"dsm_packages_clustering_cost":[], "dsm_packages_propagation_cost":[], "dsm_packages_size":[],"dsm_classes_clustering_cost":[], "dsm_classes_propagation_cost":[], "dsm_classes_size":[], "dsm_process_time":[], "project_size":[], "dates":[]}
-
+#evolution = {"dsm_packages_clustering_cost":[], "dsm_packages_propagation_cost":[], "dsm_packages_size":[],"dsm_classes_clustering_cost":[], "dsm_classes_propagation_cost":[], "dsm_classes_size":[], "dsm_process_time":[], "project_size":[], "dates":[]}
+evolution = collections.defaultdict(list)
+versions =[]
 
 def main():
     global collection
@@ -109,6 +111,7 @@ def getCleanCommitList(repo_id, html_url, name):
     
     """
     global GH_CUR_USR
+    global versions
     
     try:
         os.chdir(REPO_DOWNLOAD_DIR)
@@ -155,21 +158,23 @@ def getCleanCommitList(repo_id, html_url, name):
 
         #json_data contains now all commits for repo
         # Remove commits for the same day, let only one
-        version= {"repo_id":"","sha":"","date":"", "html_url":"", "full_name":"", "external_dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"", "stable":"", "analyze":""}
-        versions = []
+        version= {"repo_id":"","sha":"","date":"", "html_url":"", "full_name":"", "external_dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"", "stable":"", "analyze":"", "dsm":{}}
+        
         last_day=-1
         last_sha=0
         last_deps=None
         for commit in json_data:
         
             day = getDateAsNumber(commit['commit']['author']['date'])
+            sh = commit['sha']
+            print "COMMIT SHA %s FROM DAY %s" % (sh,commit['commit']['author']['date'])
             
             if last_day==day:
                 json_data.remove(commit)
                 print "COMMIT From same date DELETED "
             else:
                 last_day=day
-                pomContent = downloadRepoPomFile(repo_id, name, commit['sha'])
+                pomContent = downloadRepoPomFile(repo_id, name, sh)
                 tree = ElementTree.fromstring(pomContent)
                 mappings = None
                 try:
@@ -181,8 +186,9 @@ def getCleanCommitList(repo_id, html_url, name):
                 
                 if mappings is not None and len(mappings)!=0:
                     
+                    version= {"repo_id":"","sha":"","date":"", "html_url":"", "full_name":"", "external_dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"", "stable":"", "analyze":"", "dsm":{}}
                     version['repo_id']= repo_id
-                    version['sha'] = commit['sha']
+                    version['sha'] = sh
                     version['date'] = commit['commit']['author']['date']
                     version['date_number'] = day
                     version['html_url'] = html_url
@@ -212,12 +218,21 @@ def getCleanCommitList(repo_id, html_url, name):
                         version['analyze']= 0
         
                     last_deps = mappings
-                    last_sha=commit['sha']
+                    last_sha=sh
                 else:
                     json_data.remove(commit)
                     print "COMMIT DELETED because of no depedencies in pom.xml where found"
                 
-                versions.append(version)
+                
+                
+                if len(versions)==0:
+                    versions = [version]
+                else:
+                    versions.append(version)
+        
+                print "|||||||||||||||"
+                print versions
+        
 
         return versions
             
@@ -293,7 +308,7 @@ def analyzeVersion(repo_id, path, version, complete):
         tests = [p.replace('/', '.') for p in glob.glob("%s/*" % d) if os.path.isdir(p)]  # Test list in the directory
     
     print "Current tests for %s: %s" % (d, tests)
-    completed = True
+    completed = False
     for test in tests:
         
         if complete or test=="dsm":
@@ -307,9 +322,9 @@ def analyzeVersion(repo_id, path, version, complete):
                     res = m.run_test(repo_id, path, version)
                     print "ANALYZER REPONSE: " + str(res)
                     print repo_id
-                    if d is not None and d!=0:
+                        #if d is not None and d!=0:
                         #version[d][test_name] = res
-                        version[test_name] = res
+                    version[test_name] = res
                 completed = True
         
             except Exception as e:
@@ -343,7 +358,9 @@ def saveVersionAnalysisResult(version, repo_id):
 
     else:
         print "Version already existed, updating the json..."
-        collectionVersion.update({"_id":version_json["_id"]}, version)
+        _id = collectionVersion.update({"_id":version_json["_id"]}, version)
+        collectionRepoVersions.insert({"repo":repo_id, "version":_id})
+        print "VERSION SAVED"
 
     #collection.update({"_id": repo_id}, repo_json)
 
@@ -482,7 +499,7 @@ def callback(ch, method, properties, body):
             print "Master download completed."
             #Download porject Master
             path = '%s/%s' % (REPO_DOWNLOAD_DIR, name+'-master')
-            version= {"repo_id":str(repo_id),"sha":"master","date":"", "html_url":"", "full_name":"", "external_dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"0", "stable":"", "analyze":"", "tags":{}}
+            version= {"repo_id":str(repo_id),"sha":"master","date":"", "html_url":"", "full_name":"", "external_dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"0", "stable":"", "analyze":"", "tags":{}, "dsm":{}}
             #Try to analyze master
             version = analyzeVersion(repo_id, path, version, True)
             #Save result into version
@@ -495,49 +512,74 @@ def callback(ch, method, properties, body):
             
                 versions = getCleanCommitList(repo_id, repo_json['html_url'], full_name)
                 #versions = getSelectedCommits(versions)
+                
+                if "error" not in version["dsm"] and "dsm_packages_clustering_cost" in version["dsm"]:
+                
+                    evolution["dsm_packages_clustering_cost"].append(version["dsm"]["dsm_packages_clustering_cost"])
+                    evolution["dsm_packages_propagation_cost"].append(version["dsm"]["dsm_packages_propagation_cost"])
+                    evolution["dsm_packages_size"].append(version["dsm"]["dsm_packages_size"])
+                    evolution["dsm_classes_clustering_cost"].append(version["dsm"]["dsm_classes_clustering_cost"])
+                    evolution["dsm_classes_propagation_cost"].append(version["dsm"]["dsm_classes_propagation_cost"])
+                    evolution["dsm_classes_size"].append(version["dsm"]["dsm_classes_size"])
+                    evolution["dsm_process_time"].append(version["dsm"]["dsm_process_time"])
+                    evolution["project_size"].append(version["dsm"]["project_size"])
+                    evolution["dates"].append(version["date"])
+                    evolution["stable"].append(version["stable"])
+                
 
                 print "***********************************************"
-                print versions
+                print "NUM OF VERSIONS SELECTED %i" % (len(versions))
                 
+                
+                '''
                 if versions[0]["external_dependencies"]["use"] is not None and versions[-1]["external_dependencies"]["use"] is not None:
                     
-                    '''
+                   
                     rem,ne = compareCommits(versions[0]["external_dependencies"]["use"],versions[-1]["external_dependencies"]["use"])
                     if len(rem)==0 and len(ne)==0:
                         print "THERE ARE NO DIFFERENCES BETWEEN FIRST AND LAST COMMIT"
                         blacklistThis=True
-                    '''
-                else:
-                
-                    for version in versions:
                     
-                        if version['analyze']==1:
+                else:
+                '''
+                for ver in versions:
+                    
+                    print ver['analyze']
+                    print "???"
+                    if ver['analyze']==1 or ver['analyze']==0:
                             
-                            print "ANALYZIND REPO VERSION WITH SHA %s" % (version['sha'])
+                        print "ANALYZIND REPO VERSION WITH SHA %s" % (ver['sha'])
                         
-                            downloadRepo(repo_json['html_url'], version['sha'], repo_id)
-                            pathx = '%s/%s' % (REPO_DOWNLOAD_DIR, name+'-'+version['sha'])
-                            respVersion = analyzeVersion(repo_id,pathx, version, False)
+                        downloadRepo(repo_json['html_url'], ver['sha'], repo_id)
+                        pathx = '%s/%s' % (REPO_DOWNLOAD_DIR, name+'-'+ver['sha'])
+                        respVersion = analyzeVersion(repo_id, pathx, ver, True)
                             
-                            print "&&&&&&&&&&&&&&&&&&&&&"
-                            print respVersion
-                            print "&&&&&&&&&&&&&&&&&&&&&"
+                        print "&&&&&&&&&&&&&&&&&&&&&"
+                        print respVersion
+                        print "&&&&&&&&&&&&&&&&&&&&&"
                             
-                            saveVersionAnalysisResult(respVersion,repo_id)
-                            if "error" not in respVersion["dsm"]:
+                        saveVersionAnalysisResult(respVersion,repo_id)
+                        if "dsm" not in respVersion:
+                            print "ERRRRRRRRRRROOOOOOOOOOOOOOORRRRRRRRR"
+                        
+                        if "error" not in respVersion["dsm"] and "dsm_packages_clustering_cost" in respVersion["dsm"]:
+                            
+                            print "+++++++++++++++++++++++++++++"
+                            
+                            #evolution.setdefault(t,["dsm_packages_clustering_cost"]).append(respVersion["dsm"]["dsm_packages_clustering_cost"])
+                            evolution["dsm_packages_clustering_cost"].append(respVersion["dsm"]["dsm_packages_clustering_cost"])
+                            evolution["dsm_packages_propagation_cost"].append(respVersion["dsm"]["dsm_packages_propagation_cost"])
+                            evolution["dsm_packages_size"].append(respVersion["dsm"]["dsm_packages_size"])
+                            evolution["dsm_classes_clustering_cost"].append(respVersion["dsm"]["dsm_classes_clustering_cost"])
+                            evolution["dsm_classes_propagation_cost"].append(respVersion["dsm"]["dsm_classes_propagation_cost"])
+                            evolution["dsm_classes_size"].append(respVersion["dsm"]["dsm_classes_size"])
+                            evolution["dsm_process_time"].append(respVersion["dsm"]["dsm_process_time"])
+                            evolution["project_size"].append(respVersion["dsm"]["project_size"])
+                            evolution["dates"].append(respVersion["date"])
+                            evolution["stable"].append(respVersion["stable"])
         
-                                evolution["dsm_packages_clustering_cost"].append(respVersion["dsm"]["dsm_packages_clustering_cost"])
-                                evolution["dsm_packages_propagation_cost"].append(respVersion["dsm"]["dsm_packages_propagation_cost"])
-                                evolution["dsm_packages_size"].append(respVersion["dsm"]["dsm_packages_size"])
-                                evolution["dsm_classes_clustering_cost"].append(respVersion["dsm"]["dsm_classes_clustering_cost"])
-                                evolution["dsm_classes_propagation_cost"].append(respVersion["dsm"]["dsm_classes_propagation_cost"])
-                                evolution["dsm_classes_size"].append(respVersion["dsm"]["dsm_classes_size"])
-                                evolution["dsm_process_time"].append(respVersion["dsm"]["dsm_process_time"])
-                                evolution["project_size"].append(respVersion["dsm"]["project_size"])
-                                evolution["dates"].append(respVersion['date'])
-        
-                    repo_json['evolution'] = evolution
-                    completed= True
+                repo_json['evolution'] = evolution
+                completed= True
             else:
                 print "ERROR in master version analysis, complete evolution analysis skipped"
                 repo_json['evolution'] = {"error":"Could not analyze master version"}
@@ -546,7 +588,7 @@ def callback(ch, method, properties, body):
                         
             if len(evolution["dates"])==0 or blacklistThis:
                 collectionBlacklist.save({"_id": repo_id, "value":"NO_EVOLUTION_CHANGES"})
-                repo_json['state'] = 'blacklistV3'
+                repo_json['state'] = {"state":"blacklistV3'","value":"NO_EVOLUTION_CHANGES"}
             elif evolution and len(evolution["dates"])>0:
                 repo_json['state'] = 'completedV3'
             else:

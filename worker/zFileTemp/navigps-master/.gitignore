@@ -1,0 +1,12 @@
+*.class
+*.log
+*~
+*.temp
+*.odb
+dist
+build
+src/tests
+tests
+nbproject
+manifest.mf
+navigps.log*
