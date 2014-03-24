@@ -158,7 +158,7 @@ def getCleanCommitList(repo_id, html_url, name):
 
 
         #json_data contains now all commits for repo
-        # Remove commits for the same day, let only one
+        # Remove commits for the same day, let only one -  TODO - UPDATE: let the las commit from day, not the first one!
         version= {"repo_id":"","sha":"","date":"", "html_url":"", "full_name":"", "external_dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"", "stable":"", "analyze":"", "dsm":{}}
         
         last_day=-1
@@ -171,9 +171,9 @@ def getCleanCommitList(repo_id, html_url, name):
             print "COMMIT SHA %s FROM DAY %s" % (sh,commit['commit']['author']['date'])
             
             if last_day==day:
-                json_data.remove(commit)
-                print "COMMIT From same date DELETED "
-            else:
+                #json_data.remove(commit)
+                print "COMMIT From same date DELETED - not deleted! "
+            if day:
                 last_day=day
                 pomContent = downloadRepoPomFile(repo_id, name, sh)
                 pomContent.encode('ascii', 'ignore')
