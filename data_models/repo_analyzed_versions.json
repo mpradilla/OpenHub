@@ -76,5 +76,44 @@
             "name" : "documentation_analysis",
             "value" : "Nothing"
         }
-    ]
+    ],
+	"modularity" : { 
+					"external_dependencies" : {
+												"junit" : "4.8.2",
+									 			"hamcrest-all" : "1.1"
+											  } 
+					"dsm" : {
+						
+							"dsm_packages_convert_time": 213,
+							"dsm_packages_propagation_cost": 213334,
+							"dsm_classes_clustering_cost":43243,
+							"dsm_packages_clustering_cost":
+							"dsm_packages_propagation_cost":43434, 
+							"dsm_packages_size":3443,
+							"dsm_classes_size":3434,
+							"dsm_process_time":512,
+							"project_size":1024
+							},
+					"tags" : null
+				    },
+					
+	"evolution" : {
+					"dates" : [ "2011-06-01T19:54:11Z", "2010-12-24T12:24:28Z", "2011-01-01T15:39:31Z"],
+					"dsm_classes_propagation_cost" : [ 
+														{ "version" : 1, "value" : 100, "time" : 0.0001437664031982422 },
+														{ "version" : 1, "value" : 100, "time" : 0.0003130435943603516 },
+														{ "version" : 1, "value" : 100, "time" : 0.0003130435943603516 }
+										 		   	 ],
+					"dsm_classes_clustering_cost":[],
+					"dsm_packages_clustering_cost":[], 
+					"dsm_packages_propagation_cost":[], 
+					"dsm_packages_size":[],
+					"dsm_classes_size":[],
+					"dsm_process_time":[],
+					"project_size":[],
+				  }
+			  
+	
+	
+	
 }

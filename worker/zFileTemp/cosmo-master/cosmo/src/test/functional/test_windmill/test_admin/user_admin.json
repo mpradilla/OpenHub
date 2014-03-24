@@ -1,7 +1,0 @@
-{"params": {"link": "Server Status"}, "method": "click"}
-{"params": {"link": "Run Garbage Collector", "timeout": 40000}, "method": "waits.forElement"}
-{"params": {"link": "Users"}, "method": "click"}
-{"params": {"timeout": 20000, "id": "userAdminLinkBlock"}, "method": "waits.forElement"}
-{"params": {"link": "Create New User"}, "method": "click"}
-{"params": {"id": "username"}, "method": "asserts.assertNode"}
-{"params": {"id": "createUserDialogCancelButton"}, "method": "click"}

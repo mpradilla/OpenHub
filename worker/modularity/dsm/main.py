@@ -15,6 +15,7 @@ from os.path import relpath
 import linecache
 import sys
 import bson
+import base64
 
 #===============================================================================
 # Extract Project DSM with Dtangler https://support.requeste.com/dtangler/index.php
@@ -33,9 +34,15 @@ def run_test(id, path, repo_db):
         print "Compiling project with mvn..."
         try:
             p = subprocess.Popen(["mvn", "package",  "-DskipTests=true"], stdout=subprocess.PIPE)
+            #p = subprocess.Popen(["mvn", "clean", "install" ,"-DskipTests=true"], stdout=subprocess.PIPE)
             out, err = p.communicate()
         except:
             return {"error": "Could not compile the project with mvn package"}
+        
+        if "BUILD FAILURE" in out:
+            print "****[BUILD FAILURE]*****"
+            return {"error": "Could not compile the project with mvn package, Build Failure"}
+        
         
         print "Project Compiled with mvn"
     
@@ -45,9 +52,11 @@ def run_test(id, path, repo_db):
     
         os.chdir('..')
         os.chdir('..')
+        
+        
         #os.chdir('/Users/dasein/OpenHub/worker/modularity/dsm')
     
-        p = subprocess.Popen(["java", "-Xmx4G", "-jar", "dtangler-core.jar","-input=/"+path], stdout=subprocess.PIPE)
+        p = subprocess.Popen(["java", "-Xmx6G", "-jar", "dtangler-core.jar","-input=/"+path], stdout=subprocess.PIPE)
         out, err = p.communicate()
         print "Calculating DSM for packages..."
         matrix = out.split('|', 1 )[1]
@@ -63,7 +72,8 @@ def run_test(id, path, repo_db):
         response["dsm_packages_size"] = len(dsmStructure)
         print "DSM packages size: " + str(len(dsmStructure))
     
-    
+        #ANALYSIS WILL BE DONE IN ENG. CLUSTER
+        '''
         try:
         
             prop_cost = calculatePropagationCost(dsmStructure)
@@ -74,11 +84,15 @@ def run_test(id, path, repo_db):
 
         except:
             print "ERROR getting packages prop and clustering cost"
-    
-
+        '''
     
         #Compress DSM before saving
-        matrix = compressDSMMatrix(matrix)
+        
+        if len(matrix)>3:
+            matrix = compressDSMMatrix(matrix)
+        else:
+            matrix = {"error":"Matrix size < 3"}
+
         response["dsm_packages"] = matrix
     
         # CLASS DSM
@@ -100,6 +114,8 @@ def run_test(id, path, repo_db):
         response["dsm_classes_size"] = len(dsmStructure)
         print "DSM classes size: " + str(len(dsmStructure))
 
+        #ANALYSIS WILL BE DONE IN ENG. CLUSTER
+        '''
         try:
 
             prop_cost = calculatePropagationCost(dsmStructure)
@@ -110,11 +126,15 @@ def run_test(id, path, repo_db):
 
         except:
             print "ERROR getting packages prop and clustering cost"
+        '''
 
 
         #Compress DSM before saving
-        matrix = compressDSMMatrix(matrix)
-    
+        if len(matrix)>20:
+            matrix = compressDSMMatrix(matrix)
+        else:
+            matrix = {"error":"Matrix size > 20"}
+
         response["dsm_classes"] = matrix
         response["dsm_process_time"] = time.time() - start_time
         print time.time() - start_time
@@ -157,23 +177,68 @@ def convertDSMTextTomatrix(dsmText):
 def compressDSMMatrix(matrix):
     #Compress Matrix string
     try:
+        
+        test = matrix
         before = len(matrix)
+        print "==============================================="
+        print "Matrix size before compression: %i" % before
+        print "==============================================="
+        print matrix
+        print "==============================================="
+        
             #print "before: " +str(len(matrix))
-        matrix = zlib.compress(matrix,1)
+        matrix = zlib.compress(matrix.encode('utf8'))
+        matrix = base64.b64encode(matrix)
+      
+        print "==============================================="
+        print "Matrix size after compression: %i" % len(matrix)
+        print "==============================================="
+        print matrix
+        print "==============================================="
+        
+       
+        
             #print matrix
             #print "after: " + str(len(matrix))
         print "Compressed: " + str((((len(matrix))-before)/before)*100)
+
+        print "==============================================="
+        ut = base64.b64decode(matrix)
+        ut = zlib.decompress(ut)
+        #print ut
+
+        if test == ut:
+            print  "Can get back"
+        else:
+            print "CANNOT GET BACK"
+
+
+
+
+
+        tt = matrix
         
+        ##matrix = bson.binary.Binary(matrix)
+        
+        '''
         try:
             #This code could deal with other encodings, like latin_1
             #but that's not the point here
             matrix.decode('utf-8')
         except UnicodeDecodeError:
-            matrix = bson.binary.Binary(str(matrix))
+        '''
+        
+        
+        # test = matrix.decode('utf-8')
+        #print test
+        
+        #if test==tt:
+        #   print "ENCODING OK!!"
         
         return matrix
     except:
         print "[****ERROR****]:Compressing DSM Matrix"
+        PrintException()
     
 def decompressDSMMatrix(matrix):
     
