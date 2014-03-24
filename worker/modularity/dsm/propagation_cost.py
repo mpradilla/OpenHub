@@ -28,7 +28,7 @@ def calculatePropagationCost(dsm):
 #      ['F','','','','','','']
 #      ]
     
-    #Calculate Sucesive Powers of the Dpendency Matrix
+    #Calculate Succesive Powers of the Dpendency Matrix
     for i in range(len(dsm)-1, 0, -1):
         for j in range(len(dsm)-1, 0, -1):
             if i==j:

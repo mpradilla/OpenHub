@@ -1,3 +1,0 @@
-You'll need to checkout the apple CalDAVTester repository.
-
-svn co http://svn.macosforge.org/repository/calendarserver/CalDAVTester/ CalDAVTester

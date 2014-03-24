@@ -84,6 +84,7 @@ nosetests.xml
 # Data folder (pwds and such)
 data/
 data.json
+worker/zFileTemp
 
 # Classifier files
 *.npy

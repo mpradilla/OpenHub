@@ -1,4 +1,4 @@
-i#!/usr/bin/env python
+#!/usr/bin/env python
 import sys
 import json
 import github3
@@ -49,7 +49,7 @@ def main(start_from=None):
 
 
     '''
-        https://github.com/raykrueger/hibernate-memcached', '19816', 'hibernate-memcached']
+    body = "%s::%i::%s" % ("https://github.com/raykrueger/hibernate-memcached", 19816, "raykrueger/hibernate-memcached")
 
     #body = "%s::%i::%s" % ("https://github.com/fernandezpablo85/scribe-java", 889932, "fernandezpablo85/scribe-java")
     #body = "%s::%i::%s" % ("https://github.com/TUNYK/htmlcompressor-maven-plugin", 3088607, "TUNYK/htmlcompressor-maven-plugin")
@@ -60,19 +60,22 @@ def main(start_from=None):
                           properties=pika.BasicProperties(
                                                           delivery_mode=2,  # make message persistent
                                                           ))
-   
+    '''
     
+   
     while 1:
         # Authenticate on GitHub and get all repos
         if reauth:
             gh = github3.login(GH_USERS[GH_CUR_USR]['login'], GH_USERS[GH_CUR_USR]['pwd'])
         repos = gh.iter_all_repos(since=last_id)
+        #GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
+        #repos = gh.search_repos("Pom.xml", [["Java"]])
         #repos = gh.search_repos('Java')
         # Crawl repos
         reauth, last_id = start_crawl(repos, db_repos, gh, channel, last_id)
-        
-    '''
-    addReposToQueue(db_repos,channel)
+    
+    
+    #addReposToQueue(db_repos,channel)
     
     #Close connection to databse
     client.close()
