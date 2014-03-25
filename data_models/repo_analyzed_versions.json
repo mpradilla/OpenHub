@@ -111,9 +111,14 @@
 					"dsm_classes_size":[],
 					"dsm_process_time":[],
 					"project_size":[],
-				  }
-			  
+				  },
+    "download_time": 234412,
+	"compile_time":234432,
+	"number_versions": 343,
+	"number_versions_with_changes":20,
+	"succeed_versions_analyzed":3
 	
+
 	
 	
 }

@@ -23,6 +23,7 @@ from bson.objectid import ObjectId
 import pymongo
 import collections
 import time
+import logging
 
 DATA_PATH = '../data'
 BASE_DIR = ''
@@ -47,6 +48,7 @@ MONGO_COLL_REPO_VERSIONS = 'repoVersions'
 
 GH_USERS = []
 GH_CUR_USR = 0
+API_LIMITS_EX= 0
 
 dirs = []
 collection = ''
@@ -64,6 +66,9 @@ def main():
     global collectionBlacklist
 
     load_config()
+    
+    logging.basicConfig(filename='manager2.log', level=logging.INFO)
+    logging.info('Started at %s', str(time.time()))
 
     # Database connection
     client = MongoClient(MONGO_HOST, MONGO_PORT)
@@ -113,6 +118,7 @@ def getCleanCommitList(repo_id, html_url, name):
     """
     global GH_CUR_USR
     global versions
+    global API_LIMITS_EX
     
     try:
         os.chdir(REPO_DOWNLOAD_DIR)
@@ -124,12 +130,11 @@ def getCleanCommitList(repo_id, html_url, name):
         
         if 'documentation_url' in json_data and json_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
             print "limit API exceded"
+            API_LIMITS_EX+=1
+            logging.warning('API limit exceeded at %s, this is exceeded number: %s', str(time.time()), str(API_LIMITS_EX))
             GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
             return getCleanCommitList(repo_id, html_url, name)
     
-        
-        
-       
         
         end=False
         #Initial commit in first page, avoid while
@@ -147,6 +152,8 @@ def getCleanCommitList(repo_id, html_url, name):
 
             if 'documentation_url' in next_data and next_data['documentation_url'] == "http://developer.github.com/v3/#rate-limiting":
                 print "limit API exceded"
+                API_LIMITS_EX+=1
+                logging.warning('API limit exceeded at %s, this is exceeded number: %s', str(time.time()),str(API_LIMITS_EX))
                 GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
 
             elif next_data is None or len(next_data)==0:
@@ -264,6 +271,8 @@ def downloadRepoPomFile(repo_id, name, sha):
     if 'Max retries exceeded' in r.text:
         print "limit API exceded"
         print r.text
+        API_LIMITS_EX+=1
+        logging.warning('API limit exceeded at %s, this is exceeded number: %s', str(time.time()),str(API_LIMITS_EX))
         GH_CUR_USR = (GH_CUR_USR + 1) % len(GH_USERS)
         return downloadRepoPomFile(repo_id,name,sha)
     
@@ -301,7 +310,7 @@ def downloadRepo(html_url, sha, repo_id):
     except:
         
         PrintException()
-        
+        logging.error('DOWNLOADING THE REPO %s', str(time.time()), str(PrintException()))
         collectionBlacklist.save({"_id": repo_id, "value":"DOWNLOAD_TIME"})
         os.chdir(BASE_DIR)
         print "TIME LIMIT FOR DOWNLOAD EXCCEEDED"
@@ -343,6 +352,7 @@ def analyzeVersion(repo_id, path, version, complete):
                         
                     if "error(100):" in res:
                         #ERROR COMPILING THE CODE WITH MAVEN
+                        logging.error('Compiling with maven the project %s', res)
                         return False
             
             
@@ -357,7 +367,7 @@ def analyzeVersion(repo_id, path, version, complete):
                 pass
     
     version['analyzed_at'] = datetime.datetime.now()
-    version['state'] = 'completedV4' if completed else 'pending'
+    version['state'] = 'completedV5' if completed else 'pending'
 
     delete_repo(path)
 
@@ -470,8 +480,7 @@ def callback(ch, method, properties, body):
     """
     global evolution
     global versions
-    
-    
+   
     blacklistThis = False
     data = body.split("::")
     html_url = data[0]
@@ -481,6 +490,7 @@ def callback(ch, method, properties, body):
     
     print " [x] Received %r" % (data,)
     print full_name
+    logging.info('START Analysis for repo %s with id %s',full_name,str(repo_id))
 
     path = '%s/%s' % (REPO_DOWNLOAD_DIR, name)
     try:
@@ -490,10 +500,12 @@ def callback(ch, method, properties, body):
         
         if collectionBlacklist.find_one({"_id": repo_id}):
             print "PROJECT IN BLACKLIST... skipping analysis"
+            logging.error('Repo in blacklist %s with id %s ... skipping ...',full_name,str(repo_id))
             skip=True
         
         elif repo_json is None:
             print "no repo in database"
+            logging.error('Repo not found in Database %s with id %s ... skipping ...',full_name,str(repo_id))
             skip=True
         
         else:
@@ -506,6 +518,7 @@ def callback(ch, method, properties, body):
                 #404 Github Page, there is no pom there!
                 collectionBlacklist.save({"_id": repo_id, "value":"NO_POM"})
                 print "REPO HAS NO POM.XML. ADDED TO BLACKLIST"
+                logging.error('Repo has no pom.xml file from repo %s with id %s ... skipping ...',full_name,str(repo_id))
                 skip=True
             
             #CHECK IF THERE ARE DEPEDENCIES IN POM FILE - !! WARINING
@@ -519,6 +532,7 @@ def callback(ch, method, properties, body):
                 except:
                     print "CANNOT GET DEPENDENCIES FROM MASTER POM... skipping project and adding it to blacklist"
                     collectionBlacklist.save({"_id": repo_id, "value":"NO_DEPENDENCIES_IN_POM"})
+                    logging.error('Cannot get dependencies from pom.xml file from repo %s with id %s ... skipping ...',full_name,str(repo_id))
                     skip=True
      
         print "Downloading master source code..."
@@ -527,9 +541,10 @@ def callback(ch, method, properties, body):
         if skip==False and downloadRepo(html_url, "master",repo_id):
             
             repo_json['download_time'] = str(time.time() - before)
+            logging.info('Download time for project: %s with id: %s was %s', full_name, str(repo_id), str(time.time() - before) )
+            print "Master download completed."
             print time.time() - before
             
-            print "Master download completed."
             #Download porject Master
             path = '%s/%s' % (REPO_DOWNLOAD_DIR, name+'-master')
             version= {"repo_id":str(repo_id),"sha":"master","date":"", "html_url":"", "full_name":"", "external_dependencies":{"use": {}, "used_by": {}, "new":{}, "removed":{}, "compare_to":""}, "state":"pending", "analyzed_at":"", "next_sha":"", "last_sha":"0", "stable":"", "analyze":"", "tags":{}, "dsm":{}}
@@ -545,7 +560,8 @@ def callback(ch, method, properties, body):
             
                 repo_json['evolution'] = {"error":"Could compile master version"}
                 collectionBlacklist.save({"_id": repo_id, "value":"COULD_NOT_COMPILE"})
-                repo_json['state'] = {"state":"blacklistV4'","value":"COULD_NOT_COMPILE"}
+                repo_json['state'] = {"state":"blacklistV5'","value":"COULD_NOT_COMPILE"}
+                logging.error('Cannot analyze repo %s with id %s',full_name,str(repo_id))
    
    
             elif "error" not in version:
@@ -555,6 +571,7 @@ def callback(ch, method, properties, body):
                 print "***********************************************"
                 
                 if versions or len(versions)==0:
+                    logging.info('Versions found for project: %s with id: %s are in total %s', full_name, str(repo_id), str(len(versions)))
                     print "NUM OF VERSIONS SELECTED: %i" % (len(versions))
                     repo_json['number_versions'] = len(versions)
                     numforAnalysis=0
@@ -565,10 +582,25 @@ def callback(ch, method, properties, body):
                         if ver['analyze']==1:
                             numforAnalysis+=1
                             print "ANALYZIND REPO VERSION WITH SHA %s" % (ver['sha'])
+                            logging.info('Analyzing version with sha %s from project: %s with id: %s', ver['sha'], full_name, str(repo_id))
                         
                             downloadRepo(repo_json['html_url'], ver['sha'], repo_id)
                             pathx = '%s/%s' % (REPO_DOWNLOAD_DIR, name+'-'+ver['sha'])
                             respVersion = analyzeVersion(repo_id, pathx, ver, True)
+                            
+                            if "dsm" not in respVersion:
+                                print "ERROR! - DSM tag not found in analysis response"
+                                logging.error('Analyzing version with sha %s from project: %s with id: %s - DSM not in analysis response', ver['sha'], full_name, str(repo_id))
+                                respVersion['dsm_extracted'] = 0
+                            
+                            elif "error" in respVersion["dsm"]:
+                                print "ERROR! - Building and getting DSM"
+                                logging.error('Analyzing version with sha %s from project: %s with id: %s - Error tag in analysis response', ver['sha'], full_name, str(repo_id))
+                                respVersion['dsm_extracted'] = 0
+                            else:
+                                succeedAnalyzed+=1
+                                logging.info('Succed analisis for version with sha:%s from project: %s with id: %s', ver['sha'], full_name, str(repo_id))
+                                respVersion['dsm_extracted'] = 1
                             
                             print "&&&&&&&&&&&&&&&&&&&&&"
                             print respVersion
@@ -576,31 +608,26 @@ def callback(ch, method, properties, body):
                             
                             saveVersionAnalysisResult(respVersion,repo_id)
                         
-                            if "dsm" not in respVersion:
-                                print "ERROR! - DSM tag not found in analysis response"
-                
-                            elif "error" in respVersion["dsm"]:
-                                print "ERROR! - Building and getting DSM"
-                            else:
-                                succeedAnalyzed+=1
+                        
 
                     print "ANALYZED VERSIONS: %i" % numforAnalysis
                     print "REAL ANALYZED VERSIONS: %i" % succeedAnalyzed
                     completed= True
                     repo_json['number_versions_with_changes'] = numforAnalysis
-                    repo_json['state'] = 'completedV4'
+                    repo_json['state'] = 'completedV5'
                     repo_json['succeed_versions_analyzed']= succeedAnalyzed
                 else:
                     completed= False
                     repo_json['number_versions_with_changes'] = 0
                     repo_json['state'] = {"error":"Number of versions for analysis equal 0"}
+                    logging.info('No changes in pom.xml file for project: %s with id: %s', full_name, str(repo_id))
         
             else:
                 print "ERROR in master version analysis, complete evolution analysis skipped"
                 repo_json['evolution'] = {"error":"Could not analyze master version"}
                 collectionBlacklist.save({"_id": repo_id, "value":"NO_EVOLUTION_CHANGES"})
-                repo_json['state'] = {"state":"blacklistV4'","value":"NO_EVOLUTION_CHANGES"}
-
+                repo_json['state'] = {"state":"blacklistV5'","value":"NO_EVOLUTION_CHANGES"}
+                logging.error('ERROR in master version analysis for project: %s with id: %s', full_name, str(repo_id))
 
             repo_json['analyzed_at'] = datetime.datetime.now()
 
@@ -618,7 +645,8 @@ def callback(ch, method, properties, body):
         
             print "COULD NOT DOWNLOAD MASTER VERSION"
             repo_json['evolution'] = {"error":"Could not analyze master version"}
-            repo_json['state'] = 'blacklistV4'
+            repo_json['state'] = 'blacklistV5'
+            logging.error('COULD NOT DOWNLOAD MASTER VERSION for project: %s with id: %s', full_name, str(repo_id))
 
 
         print "Saving results to databse..."
@@ -636,6 +664,7 @@ def callback(ch, method, properties, body):
         print "General error:", str(e)
         
         PrintException()
+        logging.error('CRITICAL ERROR in alaysis of project: %s with id: %s   -    %s', full_name, str(repo_id), str(PrintException()))
 
         collection.update({"_id": repo_id}, {'$set': {'state': 'failed', 'analyzed_at': datetime.datetime.now(), 'error': 'General error:' + str(e), 'stack_trace': traceback.format_exc()}})
         print "Updated repo with failed status"
