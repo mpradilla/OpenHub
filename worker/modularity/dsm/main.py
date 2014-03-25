@@ -16,6 +16,7 @@ import linecache
 import sys
 import bson
 import base64
+import logging
 
 #===============================================================================
 # Extract Project DSM with Dtangler https://support.requeste.com/dtangler/index.php
@@ -32,24 +33,29 @@ def run_test(id, path, repo_db):
         print "DSM ANALYZER PATH RECEIVED: " +str(path)
     
         print "Compiling project with mvn..."
+        logging.info('version received for analysis in dsm.main.py')
         try:
             p = subprocess.Popen(["mvn", "package",  "-DskipTests=true"], stdout=subprocess.PIPE)
             #p = subprocess.Popen(["mvn", "clean", "install" ,"-DskipTests=true"], stdout=subprocess.PIPE)
             out, err = p.communicate()
         except:
+            PrintException()
             return {"error": "Could not compile the project with mvn package"}
+            logging.error('*** Compiling the project %s with maven - %s',str(id), str(out))
         
         if "BUILD FAILURE" in out:
             print "****[BUILD FAILURE]*****"
-            return {"error": "Could not compile the project with mvn package, Build Failure"}
+            return {"error": "Could not compile the project with mvn package, Build Failure"+ str(out)}
+            logging.error('*** MAVEN BUILD FAILURE for project %s  -  %s',str(id), str(out))
         
-        
+
         print "Project Compiled with mvn"
-    
+       
+   
         response["project_build_time"] = time.time() - start_time
+        logging.info('version compiled with maven in %s seconds', sr(time.time() - start_time))
         start_time = time.time()
-    
-    
+       
         os.chdir('..')
         os.chdir('..')
         
@@ -69,8 +75,10 @@ def run_test(id, path, repo_db):
         response["dsm_packages_convert_time"] = time.time() - s_time
         
         
+        
         response["dsm_packages_size"] = len(dsmStructure)
         print "DSM packages size: " + str(len(dsmStructure))
+        logging.info('DSMText packages with size: %s - converted in Matrix in %s seconds', str(len(dsmStructure)), sr(time.time() - s_time))
     
         #ANALYSIS WILL BE DONE IN ENG. CLUSTER
         '''
@@ -113,6 +121,7 @@ def run_test(id, path, repo_db):
 
         response["dsm_classes_size"] = len(dsmStructure)
         print "DSM classes size: " + str(len(dsmStructure))
+        logging.info('DSMText classes with size: %s - converted in Matrix in %s seconds', str(len(dsmStructure)), sr(time.time() - s_time))
 
         #ANALYSIS WILL BE DONE IN ENG. CLUSTER
         '''
@@ -138,6 +147,7 @@ def run_test(id, path, repo_db):
         response["dsm_classes"] = matrix
         response["dsm_process_time"] = time.time() - start_time
         print time.time() - start_time
+        logging.info('----- Total time needed to extract DSMs: %s', str(time.time() - start_time))
     
         #GET Size of the project in MB
         size = commands.getoutput('du -sh '+path).split()[0]
@@ -151,10 +161,12 @@ def run_test(id, path, repo_db):
     
         response["project_size"] = size
         print str(size) + " MBytes"
+        logging.info('Project size in MBytes: %s',str(size))
         print "Done"
         return response
     except:
         PrintException()
+        logging.error('IN DSM ANALYSIS, project with id: %s',str(id))
 
         return {"error": "DSM analysis error"}
 
@@ -239,6 +251,7 @@ def compressDSMMatrix(matrix):
     except:
         print "[****ERROR****]:Compressing DSM Matrix"
         PrintException()
+        logging.error('**** COULD NOT COMPRESS DSM!')
     
 def decompressDSMMatrix(matrix):
     
@@ -255,6 +268,7 @@ def PrintException():
     filename = f.f_code.co_filename
     linecache.checkcache(filename)
     line = linecache.getline(filename, lineno, f.f_globals)
+    logging.error('EXCEPTION %s', str('EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj)))
     print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj)
 
 if __name__ == '__main__':

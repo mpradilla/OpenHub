@@ -60,7 +60,7 @@ def main(start_from=None):
                           properties=pika.BasicProperties(
                                                           delivery_mode=2,  # make message persistent
                                                           ))
-    '''
+    
     
    
     while 1:
@@ -74,8 +74,8 @@ def main(start_from=None):
         # Crawl repos
         reauth, last_id = start_crawl(repos, db_repos, gh, channel, last_id)
     
-    
-    #addReposToQueue(db_repos,channel)
+    '''
+    addReposToQueue(db_repos,channel)
     
     #Close connection to databse
     client.close()

@@ -27,6 +27,7 @@
 	"last_sha" : "",
 	"stable":1,
 	"analyze":1,
-	"tags": {} 
+	"tags": {},
+	"dsm_extracted": 1  
 
 }
