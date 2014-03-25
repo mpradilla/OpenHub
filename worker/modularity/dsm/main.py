@@ -53,7 +53,7 @@ def run_test(id, path, repo_db):
        
    
         response["project_build_time"] = time.time() - start_time
-        logging.info('version compiled with maven in %s seconds', sr(time.time() - start_time))
+        logging.info('version compiled with maven in %s seconds', str(time.time() - start_time))
         start_time = time.time()
        
         os.chdir('..')
@@ -78,7 +78,7 @@ def run_test(id, path, repo_db):
         
         response["dsm_packages_size"] = len(dsmStructure)
         print "DSM packages size: " + str(len(dsmStructure))
-        logging.info('DSMText packages with size: %s - converted in Matrix in %s seconds', str(len(dsmStructure)), sr(time.time() - s_time))
+        logging.info('DSMText packages with size: %s - converted in Matrix in %s seconds', str(len(dsmStructure)), str(time.time() - s_time))
     
         #ANALYSIS WILL BE DONE IN ENG. CLUSTER
         '''
@@ -121,7 +121,7 @@ def run_test(id, path, repo_db):
 
         response["dsm_classes_size"] = len(dsmStructure)
         print "DSM classes size: " + str(len(dsmStructure))
-        logging.info('DSMText classes with size: %s - converted in Matrix in %s seconds', str(len(dsmStructure)), sr(time.time() - s_time))
+        logging.info('DSMText classes with size: %s - converted in Matrix in %s seconds', str(len(dsmStructure)), str(time.time() - s_time))
 
         #ANALYSIS WILL BE DONE IN ENG. CLUSTER
         '''
