@@ -42,6 +42,7 @@ def main():
     load_config()
     
     # Connect to databse
+    print "Mongo host %s and port %s" % (MONGO_HOST, MONGO_PORT)
     client = MongoClient(MONGO_HOST, MONGO_PORT)
     db = client[MONGO_DB]
     db.authenticate(MONGO_USER, MONGO_PWD)
@@ -53,6 +54,24 @@ def main():
   
     #plt.title('Title')
     
+    
+    numErrors=0
+    total=0
+    for ver in collectionVersion.find():
+        total+=1
+        if "dsm" in ver:
+            if "error" in ver["dsm"]:
+                print "ERROR IN DSM"
+                numErrors+=1
+            else:
+                print ver["dsm"]["dsm_packages"]
+
+    print "********************"
+    print "Number of erros %i of total versions %i" % (numErrors,total)
+    
+    
+    
+    '''
     for repo in db_repos.find({"language": "Java"}):
     
         vers = getVersionsForRepo(repo["_id"])
@@ -70,7 +89,7 @@ def main():
 
         
    
-    '''
+   
          #analyzeVersions(repo["_id"],plt, "dsm_packages_propagation_cost", True)
          #analyzeVersions(repo["_id"],plt, "dsm_packages_clustering_cost", True)
          #analyzeVersions(repo["_id"],plt, "dsm_packages_size", False)
