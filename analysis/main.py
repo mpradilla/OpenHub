@@ -1,10 +1,10 @@
 import json
 from pprint import pprint
-import numpy as np
-import matplotlib.pyplot as plt
+#import numpy as np
+#import matplotlib.pyplot as plt
 from pymongo import MongoClient
 
-DATA_PATH = 'data'
+DATA_PATH = '../data'
 
 MONGO_HOST = ''
 MONGO_PORT = 0
@@ -57,18 +57,27 @@ def main():
     
     numErrors=0
     total=0
+    completed=0
     for ver in collectionVersion.find():
         total+=1
         if "dsm" in ver:
             if "error" in ver["dsm"]:
                 print "ERROR IN DSM"
                 numErrors+=1
+            elif "error" in ver["dsm"]["dsm_packages"]:
+                print "ERROR IN DSM PACKAGES"
+                numErrors+=1
             else:
                 print ver["dsm"]["dsm_packages"]
+                if ver["state"]=="completedV5":
+                    completed+=1
+                print ver["state"]
+
 
     print "********************"
     print "Number of erros %i of total versions %i" % (numErrors,total)
-    
+    print "Completed V5 %i" % completed
+    print "total - errors %i" % (total-numErrors)
     
     
     '''
