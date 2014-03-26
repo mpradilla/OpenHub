@@ -219,11 +219,12 @@ def compressDSMMatrix(matrix):
         ut = zlib.decompress(ut)
         #print ut
 
+        '''
         if test == ut:
             print  "Can get back"
         else:
             print "CANNOT GET BACK"
-
+        '''
 
 
 
