@@ -85,6 +85,7 @@ nosetests.xml
 data/
 data.json
 worker/zFileTemp
+ecluster/references
 
 # Classifier files
 *.npy

@@ -570,7 +570,7 @@ def callback(ch, method, properties, body):
                 versions = getCleanCommitList(repo_id, repo_json['html_url'], full_name)
                 print "***********************************************"
                 
-                if versions or len(versions)==0:
+                if versions and len(versions)>0:
                     logging.info('Versions found for project: %s with id: %s are in total %s', full_name, str(repo_id), str(len(versions)))
                     print "NUM OF VERSIONS SELECTED: %i" % (len(versions))
                     repo_json['number_versions'] = len(versions)
