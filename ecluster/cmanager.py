@@ -2,6 +2,8 @@ import socket
 from pymongo import MongoClient
 import pymongo
 import json
+import base64
+import zlib
 
 
 DATA_PATH = '../data'
@@ -48,8 +50,8 @@ def main():
     collectionBlacklist = db[MONGO_COLL_BLACKLIST]
 
 
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((HOST, PORT))
+# s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#   s.connect((HOST, PORT))
     
     
     
@@ -57,17 +59,18 @@ def main():
         
         repo_id = version["_id"]
     
-        if "dsm" in version and "error" not in version:
+        if "dsm" in version and "error" not in version and "error" not in version["dsm"]["dsm_classes"]:
     
-            fix = getBinaryMatrix(version["dsm"])
-            text = '$:'+ str(repo_id)+':'+str(len(fix))+':'+fix+':$'
-            s.sendall(text)
-            print 'Send', repr(text)
-            data = s.recv(1024)
-            print 'Received', repr(data)
+            fix = getBinaryMatrix(version["dsm"]["dsm_classes"])
+            if fix and len(fix)>0:
+                text = '$:'+ str(repo_id)+':'+str(len(fix))+':'+fix+':$'
+            #           s.sendall(text)
+                print 'Send', repr(text)
+            #data = s.recv(1024)
+            #print 'Received', repr(data)
 
 
-    s.close()
+#s.close()
 
 def getBinaryMatrix(dsm):
 
