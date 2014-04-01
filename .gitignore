@@ -86,7 +86,10 @@ data/
 data.json
 worker/zFileTemp
 ecluster/references
+<<<<<<< HEAD
 
+=======
+>>>>>>> parent of c83d95c... SIAT example added
 
 # Classifier files
 *.npy
