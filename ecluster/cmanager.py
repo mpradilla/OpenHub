@@ -58,9 +58,14 @@ def main():
     for version in collectionVersion.find({"dsm_extracted": 1}):
         
         repo_id = version["_id"]
-    
-        if "dsm" in version and "error" not in version and "error" not in version["dsm"]["dsm_classes"]:
-    
+
+        if "error" in version["dsm"]:
+            break
+        elif "dsm_classes" not in version["dsm"]:
+            break
+        elif "error" in version["dsm"]["dsm_classes"]:
+            break
+        elif "dsm" in version:
             fix = getBinaryMatrix(version["dsm"]["dsm_classes"])
             if fix and len(fix)>0:
                 text = '$:'+ str(repo_id)+':'+str(len(fix))+':'+fix+':$'
