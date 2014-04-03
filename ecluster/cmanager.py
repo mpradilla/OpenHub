@@ -5,6 +5,32 @@ import json
 import base64
 import zlib
 
+import pika
+import logging
+import importlib
+import glob
+import shutil
+import os
+import json
+import datetime
+import traceback
+import requests
+import zipfile
+import StringIO
+import signal
+from openhub_exceptions import TimeoutException
+from pymongo import MongoClient
+from contextlib import contextmanager
+import linecache
+import sys
+from xml.etree import ElementTree
+import github3
+from bson.objectid import ObjectId
+import pymongo
+import collections
+import time
+import logging
+
 
 DATA_PATH = '../data'
 BASE_DIR = ''
@@ -44,7 +70,6 @@ def main():
     db = client[MONGO_DB]
     db.authenticate(MONGO_USER, MONGO_PWD)
     collection = db[MONGO_COLL]
-
     collectionVersion = db[MONGO_COLL_VERSION]
     collectionRepoVersions = db[MONGO_COLL_REPO_VERSIONS]
     collectionBlacklist = db[MONGO_COLL_BLACKLIST]
@@ -60,6 +85,7 @@ def main():
         repo_id = version["_id"]
 
         if "error" in version["dsm"]:
+            print "error in version"
             break
         elif "dsm_classes" not in version["dsm"]:
             break
