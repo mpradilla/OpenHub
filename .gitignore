@@ -85,7 +85,15 @@ nosetests.xml
 data/
 data.json
 worker/zFileTemp
+<<<<<<< HEAD
 
+=======
+ecluster/references
+<<<<<<< HEAD
+
+=======
+>>>>>>> parent of c83d95c... SIAT example added
+>>>>>>> 7314e841f28dd250d6c0a6826734e6ee31a6263a
 
 # Classifier files
 *.npy
