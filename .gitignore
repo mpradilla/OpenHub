@@ -85,8 +85,12 @@ nosetests.xml
 data/
 data.json
 worker/zFileTemp
+<<<<<<< HEAD
 ecluster/references
 zFileTemp/
+=======
+
+>>>>>>> parent of 8d4ba1d... MPI cluster code
 
 # Classifier files
 *.npy
