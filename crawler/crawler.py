@@ -47,6 +47,8 @@ def main(start_from=None):
     reauth = True  # Reauth variable to check if we need to reauthenticate for GitHub
     gh = None  # Just for good measure
 
+    logging.basicConfig(filename='craw.log', level=logging.INFO)
+        
 
     '''
     body = "%s::%i::%s" % ("https://github.com/raykrueger/hibernate-memcached", 19816, "raykrueger/hibernate-memcached")
@@ -61,7 +63,7 @@ def main(start_from=None):
                                                           delivery_mode=2,  # make message persistent
                                                           ))
     
-    
+    '''
    
     while 1:
         # Authenticate on GitHub and get all repos
@@ -72,10 +74,10 @@ def main(start_from=None):
         #repos = gh.search_repos("Pom.xml", [["Java"]])
         #repos = gh.search_repos('Java')
         # Crawl repos
-        reauth, last_id = start_crawl(repos, db_repos, gh, channel, last_id)
+        reauth, last_id = start_crawl(repos, db_repos, gh, channel, last_id+1)
     
-    '''
-    addReposToQueue(db_repos,channel)
+    
+    #addReposToQueue(db_repos,channel)
     
     #Close connection to databse
     client.close()
@@ -152,18 +154,19 @@ def start_crawl(repos, db_repos, gh, channel, last_id):
                 del to_insert['_id']
                 to_insert['analyzed_at'] = db_repo[u'analyzed_at']
 
-                if (db_repo[u'state'] == "completed" and repo.updated_at > db_repo[u'analyzed_at']) or (db_repo[u'state'] == "pending" or db_repo[u'state'] == "failed"):
-                    db_repos.update({"_id": last_id}, {"$set": to_insert})
-                    last_id = repo.id
-                    print "Updated repo with id", last_id
-                    push_to_queue(repo, channel)
-
+               # if (db_repo[u'state'] == "completed" and repo.updated_at > db_repo[u'analyzed_at']) or (db_repo[u'state'] == "pending" or db_repo[u'state'] == "failed"):
+                db_repos.update({"_id": last_id}, {"$set": to_insert})
+                last_id = repo.id
+                print "Updated repo with id", last_id
+                push_to_queue(repo, channel)
+		
+		'''
                 else:
                     to_insert['state'] = db_repo[u'state']
                     db_repos.update({"_id": last_id}, {"$set": to_insert})
                     last_id = repo.id
                     print "Updated repo with id %s. No analysis necessary. Will not push to queue" % last_id
-
+		'''
             else:
                 to_insert["evolution"] = {}
                 to_insert["modularity"] = {"external_dependencies": None, "dsm": None, "tags":None}
@@ -172,6 +175,7 @@ def start_crawl(repos, db_repos, gh, channel, last_id):
                 last_id = db_repos.insert(to_insert)
                 print "Inserted repo with id", last_id
                 push_to_queue(repo, channel)
+		logging.info("LAST ID INSERTED: %i", last_id)
 
     except GitHubError as e:
         if e.code != 403:
@@ -193,7 +197,7 @@ def start_crawl(repos, db_repos, gh, channel, last_id):
 def get_queue_channel(host):
 
     # Necesary logging
-    logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.CRITICAL)
+    #logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.CRITICAL)
 
     # RabbitMQ connection
     server_credentials = pika.PlainCredentials(RABBIT_USER, RABBIT_PWD)

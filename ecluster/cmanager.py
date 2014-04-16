@@ -1,37 +1,16 @@
 import socket
-<<<<<<< HEAD
 from pymongo import MongoClient
 import pymongo
 import json
 import base64
 import zlib
-
-import pika
-import logging
-import importlib
-import glob
-import shutil
-import os
-import json
-import datetime
+import sys
+import linecache
 import traceback
-import requests
-import zipfile
-import StringIO
 import signal
 from openhub_exceptions import TimeoutException
-from pymongo import MongoClient
 from contextlib import contextmanager
-import linecache
-import sys
-from xml.etree import ElementTree
-import github3
-from bson.objectid import ObjectId
-import pymongo
-import collections
-import time
-import logging
-
+import csv
 
 DATA_PATH = '../data'
 BASE_DIR = ''
@@ -57,7 +36,7 @@ PORT = 5001         # The same port as used by the server
 
 
 def main():
-    
+    print "hey"
     global collection
     global collectionVersion
     global collectionRepoVersions
@@ -71,38 +50,165 @@ def main():
     db = client[MONGO_DB]
     db.authenticate(MONGO_USER, MONGO_PWD)
     collection = db[MONGO_COLL]
+
     collectionVersion = db[MONGO_COLL_VERSION]
     collectionRepoVersions = db[MONGO_COLL_REPO_VERSIONS]
     collectionBlacklist = db[MONGO_COLL_BLACKLIST]
 
-
-# s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#   s.connect((HOST, PORT))
     
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #s.connect((HOST, PORT))
+    count=0
+    total=0
+
+    dsmClassesSizes=[0]
+    dsmPackagesSizes=[0]
     
+    versionCompileTimes=[0]
+    versionSucceedAnalyzed=[0]
+    versionDsmExtracted=[0]
+    versionDownTimes=[0]
+ 
+    dates=[0]
+    stables=[0]
+    idss=[0]
+    numNOTCompile=0
+    numDSMSize=0
+    print "hey" 
+    try:
+
+        for version in collectionVersion.find():
+            
+#	    print version	
+            repo_id = version["_id"]
+            #print version
+            if "error" in version["dsm"]:
+		updateVersionDsmExtracted(collectionVersion, repo_id)
+        	numNOTCompile+=1
+		print version
+		print "error in version"
+	    	continue
+            elif "dsm_classes" not in version["dsm"] or version["dsm"]["dsm_classes"]==None:
+                print "no dsm classes found"
+		updateVersionDsmExtracted(collectionVersion, repo_id)
+	        continue
+            elif "error" in version["dsm"]["dsm_classes"]:
+                print "error un classes dsm"
+		if "Matrix size > 20" in version["dsm"]["dsm_classes"]["error"]:
+		    print "SIZE ERROR"
+		    numDSMSize+=1
+		    print version["dsm"]["dsm_classes_size"]		
+		#print version
+		updateVersionDsmExtracted(collectionVersion, repo_id)
+	        continue
+      
+            elif "dsm" in version:
+
+		dsmClassesSizes.append(version["dsm"]["dsm_classes_size"])
+		dsmPackagesSizes.append(version["dsm"]["dsm_packages_size"])
+ 		
+		#versionCompileTimes.append(version["compile_time"])
+ 		#versionSucceedAnalyzed.append(version["succeed_versions_analyzed"])
+   		if "dsm_extracted" in version:
+		    versionDsmExtracted.append(version["dsm_extracted"])
+		else:
+		    versionDsmExtracted.append(1)
+		idss.append(version["repo_id"])
+	        stables.append(version["stable"])
+		dates.append(version["date"])
+
+	#	print dsmClassesSizes
+	#	print dsmPackagesSizes
+	#	print versionDsmExtracted
+	    '''
+            elif "dsm" in version:
+	        print "DOUND"
+	        #print version["dsm"]["dsm_classes"]
+	        fix = getBinaryMatrix(version["dsm"]["dsm_classes"])
+	        #print fix
+                if fix and len(fix)>20:
+		
+		    binM, sizeM = getBinaryStringMatrix(fix)
+		    
+		    total+=1		
+
+		    if sizeM>25 and sizeM<1000:
+			print "DSM OK: %i" % sizeM
+			count+=1
+			#print binM
+			print testDSMStructure(binM)
+			print binM
+			print zlib.decompress(base64.b64decode(version["dsm"]["dsm_classes"]))	   
+		    	text = '$:'+ str(repo_id)+':'+str(sizeM)+':'+str(binM)+':$'
+                    	try:
+			     print "SEND"
+		          #  sendData(s,text)
+		    	except:
+			    print "COULD NOT SEND THE DSM"
+			    continue;
+		    
+ 
+		    #text = '$:1234:12:1,0,0,1,1;1,0,0,0:$'
+		    #s.sendall(text)
+			    print "COULD NOT SEND THE DSM"
+			    continue;
+		    
+ 
+		    #text = '$:1234:12:1,0,0,1,1;1,0,0,0:$'
+		    #s.sendall(text)
+                    #print 'Send', repr(text)
+                    #data = s.recv(1024)
+                    #priint 'Received', repr(data)
+   	    '''		
+	print "TOTAL DSMs: %i" % total 
+	print "TOTAL Correct DSMs: %i" % count
+
+	out = csv.writer(open("stats.csv","w"), delimiter=',',quoting=csv.QUOTE_ALL)
+	out.writerow(idss)
+	out.writerow(dsmClassesSizes)
+	out.writerow(dsmPackagesSizes)
+	out.writerow(versionDsmExtracted)
+	out.writerow(stables)
+	out.writerow(dates)
+        print "length: %i" % len(dsmClassesSizes) 
+        print "NUM DSM SIZE ERRORs: %i" % numDSMSize 
+        print "NUM not compile: %i" % numNOTCompile
+    except:
+	s.close()
+	print "Error:"
+        PrintException()
+
+    #s.close()
+
+def testDSMStructure(dsm):
+
+    rows = dsm.split(';')
+    cols = rows[0].split(',')
+	
+    if len(rows)!=len(cols):
+	print "DSM not square! %i x %i" % (len(rows), len(cols))
+	return False
+
+    cols = rows[len(rows)-1].split(',')
+    if len(rows)!=len(cols):
+	print "DSM not square in last row!"
+	return False
+
+    return True
+
+def sendData(s,data):
     
-    for version in collectionVersion.find({"dsm_extracted": 1}):
-        
-        repo_id = version["_id"]
-
-        if "error" in version["dsm"]:
-            print "error in version"
-            break
-        elif "dsm_classes" not in version["dsm"]:
-            break
-        elif "error" in version["dsm"]["dsm_classes"]:
-            break
-        elif "dsm" in version:
-            fix = getBinaryMatrix(version["dsm"]["dsm_classes"])
-            if fix and len(fix)>0:
-                text = '$:'+ str(repo_id)+':'+str(len(fix))+':'+fix+':$'
-            #           s.sendall(text)
-                print 'Send', repr(text)
-            #data = s.recv(1024)
-            #print 'Received', repr(data)
-
-
-#s.close()
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    with time_limit(60):
+    	s.connect((HOST, PORT))
+    	print "Socket prepared to send...\n"
+    	print "lenght of packet: %i" % len(data)
+	s.sendall(data);
+    	print "SEND, waiting for ans...\n"
+    	resp = s.recv(1024)   
+    	print 'Received', repr(data)
+    s.close()
 
 def getBinaryMatrix(dsm):
 
@@ -110,11 +216,29 @@ def getBinaryMatrix(dsm):
     ut = base64.b64decode(dsm)
     ut = zlib.decompress(ut)
 
-    matrix = convertDSMTextTomatrix(ut)
+    matrix = convertDSMTextToMatrix(ut)
+    return matrix
 
+def getBinaryStringMatrix(matrix):
 
+    matrix2 = [row[1:] for row in matrix[1:]]
+    string=""	
+    for line in matrix2:
+	for i,col in enumerate(line):
+	    if line[i] == "":
+	        string+=str(0)
+ 	    else:
+		string+=str(1)
 
-def convertDSMTextTomatrix(dsmText):
+	    if i!=len(line)-1:
+		string+=","
+	string+=";"
+	
+    #Return ans without last ';'
+    return string[:-1], len(line)
+		    
+
+def convertDSMTextToMatrix(dsmText):
     #Process the DSM text into a matrix data structure
     lines = dsmText.split('\n');
     dsm=[]
@@ -123,10 +247,25 @@ def convertDSMTextTomatrix(dsmText):
         for i, colu in enumerate(columns):
             colu2 = colu.replace(" ", "")
             columns[i]= colu2
-        
+	#Last column need to be supressed, DSM need to be square        
+	del columns[-1]
         dsm.append(columns)
     return dsm
 
+def updateVersionDsmExtracted(collection, doc_id):
+
+    collection.update({'_id':doc_id},{'$set':{'dsm_extracted':0}}) 
+
+@contextmanager
+def time_limit(seconds):
+    def signal_handler(signum, frame):
+	raise TimeoutException, "Time out!"
+    signal.signal(signal.SIGALRM, signal_handler)
+    signal.alarm(seconds)
+    try:
+	yield
+    finally:
+	signal.alarm(0)
 
 def load_config():
     global BASE_DIR, REPO_DOWNLOAD_DIR, MONGO_PWD, MONGO_USER, MONGO_HOST, MONGO_PORT, MONGO_DB, MONGO_COLL, MONGO_COLL_VERSION, MONGO_COLL_REPO_VERSIONS, MONGO_COLL_BLACKLIST, dirs
@@ -152,21 +291,11 @@ def PrintException():
     filename = f.f_code.co_filename
     linecache.checkcache(filename)
     line = linecache.getline(filename, lineno, f.f_globals)
-    print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj)
+    print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename,lineno, line.strip(),exc_obj)
 
 
-if __name__ == '__main__':
+if __name__=='__main__':
     main()
-=======
 
-HOST = 'master-hpc-mox.uniandes.edu.co'    # The remote host
-PORT = 50000                               # The same port as used by the server
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.connect((HOST, PORT))
-text = 'Hello from python. Here I will send you a DSM matrix'
-s.sendall(text.encode('utf8'))
-data = s.recv(1024)
-s.close()
 
-print 'Received', repr(data)
->>>>>>> parent of 8d4ba1d... MPI cluster code
+
