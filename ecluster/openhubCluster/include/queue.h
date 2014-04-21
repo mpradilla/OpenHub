@@ -81,8 +81,8 @@ typedef struct data_dsm{
 
 /* Job queue as doubly linked list */
 typedef struct dataqueue{
-	data_item       *head;                  /**< pointer to head of queue */
-	data_item       *tail;                  /**< pointer to tail of queue */
+	data_dsm       *head;                  /**< pointer to head of queue */
+	data_dsm       *tail;                  /**< pointer to tail of queue */
 	int             size;                  /**< amount of jobs in queue  */
 	sem_t           *queueSem;              /**< semaphore(this is probably just holding the same as jobsN) */
 }dataqueue;
