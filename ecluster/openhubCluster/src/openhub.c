@@ -20,11 +20,14 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <time.h>
+#include <math.h>
 #include "../include/queue.h"
-//#include "queue.h"
+#include "../include/propagation_cost.h"
 
 
 void *taskIreceive(void *arg);
+float calculate_propagation_cost( int** dsm, int size);
+int** initializeTestDsm();
 
 int comm_rank, comm_size, thread_level_provided;
 
@@ -102,7 +105,8 @@ int main(int argc, char **argv){
         
 	//Create Queue to handle incoming data
 	dataqueue* workQueue;	
-
+	
+	//Thread para recibir y guardar los datos
 	pthread_create(&Thread_receive, (void*)NULL, (void *) taskIreceive, (void *) workQueue);	
 
         while(1)
@@ -115,17 +119,46 @@ int main(int argc, char **argv){
 	
 	/* SLAVE PROCESS */
 	else{
+
+		printf("here from slave...");
+
 		// Get the name of the processor
 		MPI_Get_processor_name(procname, &lenname);
  		
-		//pthread_t Thread_receive;
-		//pthread_create(&Thread_receive, (void*)NULL, (void*) taskIreceive, (void *) NULL);		
+		//Create thread to receive the data
+       		pthread_t Thread_receive_R1;
+
+		//Create queue to handle incomming data
+		//dataqueue* workQueue_R1;
+		int **test;
+   		test = initializeTestDsm();
+
+		float ans = calculate_propagation_cost( test, 6);
+		printf("propagation Cost: %.4f\n", ans); 
+		//Initialize Queue
+		//worQueue_R1 = dataqueue_init();
+			
+		//Thread para recibir y guardar los datos
+//		pthread_create(&Thread_receive_R1, (void*)NULL, (void*) task_receive_MPI, (void *) workQueue_R1);		
 
 		// PHello from master process
 		printf("Hello world from slave process %s, rank %d out of %d processors\n",procname, comm_rank, comm_size);
-
-		//while(1)
-		//{
+		
+		data_dsm* pulledData;
+		/*
+//		dataqueue* dataqueue_p = ((dataqueue *)arg);
+		pulledData = dataqueue_remove(dataqueue_p);
+		
+		int id;
+	        if (pulledData!=NULL){
+		    
+		    id= pulledData->id;
+    		    //strcpy(id, pulledData->id);
+		    printf("ID IN SLAVE received: %d",id);
+			
+		}			
+		*/
+		
 		//	printf("waiting connections in process %s ... \n", procname);
 		//	sleep(1);
 		//}
@@ -374,5 +407,56 @@ void *taskIreceive(void *arg){
 }
 
 	
+int** initializeTestDsm()
+{
+    int **a;
+    a = malloc(sizeof(int*)*6);
+    int i;
+    for(i=0;i<6; i++)
+    {
+	a[i]= (int*) malloc(sizeof(int)*6);
+    }
+ 
+    a[0][0]=0;    
+    a[0][1]=1;    
+    a[0][2]=1;    
+    a[0][3]=0;    
+    a[0][4]=0;    
+    a[0][5]=0;    
 
+    a[1][0]=0;    
+    a[1][1]=0;    
+    a[1][2]=0;    
+    a[1][3]=1;    
+    a[1][4]=0;    
+    a[1][5]=0;    
 
+    a[2][0]=0;    
+    a[2][1]=0;    
+    a[2][2]=0;    
+    a[2][3]=0;    
+    a[2][4]=1;    
+    a[2][5]=0;    
+
+    a[3][0]=0;    
+    a[3][1]=0;    
+    a[3][2]=0;    
+    a[3][3]=0;    
+    a[3][4]=0;    
+    a[3][5]=0;    
+
+    a[4][0]=0;    
+    a[4][1]=0;    
+    a[4][2]=0;    
+    a[4][3]=0;    
+    a[4][4]=0;    
+    a[4][5]=1;    
+
+    a[5][0]=0;    
+    a[5][1]=0;    
+    a[5][2]=0;    
+    a[5][3]=0;    
+    a[5][4]=0;    
+    a[5][5]=0;    
+    return a;
+}
