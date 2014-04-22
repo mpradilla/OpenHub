@@ -176,6 +176,7 @@ void *taskIreceive(void *arg){
     int socket_desc, client_sock, c, read_size;
     struct sockaddr_in server,client;
     static char client_message[200000000];
+    static char recvBuff[200000000];
 
     //create Socket
     socket_desc = socket(AF_INET, SOCK_STREAM,0);
@@ -210,6 +211,9 @@ void *taskIreceive(void *arg){
     }
     puts("Connection accepted");
 
+/*
+ *
+
     while( (read_size = recv(client_sock, client_message, BUFF_SIZE, 0))>0)
     {
 	if(read_size==BUFF_SIZE)
@@ -236,6 +240,55 @@ void *taskIreceive(void *arg){
     }
 
    close(client_sock); 
+ * */
+    //char recvBuff[BUFF_SIZE];
+    int actualSize=0;
+    while(1) 
+    {
+	read_size = recv(client_sock, client_message, BUFF_SIZE, 0);
+	printf("size read:%i\n", read_size);
+
+	if(read_size>0)
+	{
+	    //sleep(20);
+       	    printf("-%c,-%c ",client_message[0], client_message[read_size]);
+/*	    
+	    char * new = malloc((actualSize+read_size)*sizeof(char));
+  	    memcpy(new, recvBuff, actualSize*sizeof(char));
+            memcpy(new+actualSize
+*/
+	    //Append buffer to recvBuff
+	    //recvBuff = realloc(recvBuff,(actualSize+read_size)*sizeof(char));
+  	    memcpy(recvBuff+actualSize, client_message, read_size*sizeof(char)); 
+/*
+   	    char newArray[actualSize+read_size];
+            memcpy(newArray, client_message, read_size+1);	    
+	    memcpy(recvBuff, newArray, actualSize+read_size);
+*/  
+            actualSize+=read_size;
+            printf("BUFFER: %s",recvBuff);
+	
+	}
+	printf("last char: %c", client_message[read_size-1]);
+	if(recvBuff[actualSize-1]=='$'){
+
+       	    printf("No more data -%c,-%c ",client_message[0], client_message[read_size-1]);
+            printf("%s",client_message);
+	    processData(recvBuff,actualSize);	
+	    //send mesage back to client
+	    write(client_sock, "ok", strlen("ok"));    
+    	
+	    //Re initialize recv buffer and variables
+	    actualSize=0;
+            memset(recvBuff,0, sizeof(recvBuff));
+	
+	}
+    	else if( read_size == -1)
+    	{ 
+   	    perror("recv failed");
+    	}
+    }
+    close(client_sock); 
 
 }
 
