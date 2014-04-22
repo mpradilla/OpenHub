@@ -29,6 +29,7 @@ void *taskIreceive(void *arg);
 float calculate_propagation_cost( int** dsm, int size);
 int** initializeTestDsm();
 
+void processData(char recvBuff[2000000000],int size);
 int comm_rank, comm_size, thread_level_provided;
 
 static const int BUFF_SIZE = 200000000;
@@ -126,7 +127,7 @@ int main(int argc, char **argv){
 		MPI_Get_processor_name(procname, &lenname);
  		
 		//Create thread to receive the data
-       		pthread_t Thread_receive_R1;
+       		//pthread_t Thread_receive_R1;
 
 		//Create queue to handle incomming data
 		//dataqueue* workQueue_R1;
@@ -144,7 +145,7 @@ int main(int argc, char **argv){
 		// PHello from master process
 		printf("Hello world from slave process %s, rank %d out of %d processors\n",procname, comm_rank, comm_size);
 		
-		data_dsm* pulledData;
+		//data_dsm* pulledData;
 		/*
 //		dataqueue* dataqueue_p = ((dataqueue *)arg);
 		pulledData = dataqueue_remove(dataqueue_p);
@@ -172,47 +173,87 @@ void *taskIreceive(void *arg){
 
     printf("Thread to receive data initializing...\n");
 
-    int listenfd = 0, connfd = 0;
-    struct sockaddr_in serv_addr;
-    struct sockaddr_in client_addr;
+    int socket_desc, client_sock, c, read_size;
+    struct sockaddr_in server,client;
+    static char client_message[200000000];
 
-    char sendBuff[4096] = {0};
-    time_t ticks;
+    //create Socket
+    socket_desc = socket(AF_INET, SOCK_STREAM,0);
+    if(socket_desc ==-1)
+    {
+   	printf("Could not create socket");
+    }
+    puts("Socket created");
 
-    listenfd = socket(AF_INET, SOCK_STREAM, 0);
-    memset(&serv_addr, '0', sizeof(serv_addr));
-    memset(sendBuff, '0', sizeof(sendBuff));
-    
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);	
-    serv_addr.sin_port = htons(5001);
+    //Prepare the sockaddr_in structure
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = htonl(INADDR_ANY);	
+    server.sin_port = htons(5001);
  
-    bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
+    if(bind(socket_desc, (struct sockaddr *)&server, sizeof(server))<0)
+    {
+	perror("bind failed. Error");	
+    }
+    puts("bind done");
     
-    listen(listenfd,10);
+    listen(socket_desc,3);
 	
+    //Accept incomming connection
+    puts("Waiting for incoming connections...");
+    c = sizeof(struct sockaddr_in);
+
+    //Accept connection from an incoming client
+    client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
+    if ( client_sock < 0 )
+    {
+      perror("accept failed");
+    }
+    puts("Connection accepted");
+
+    while( (read_size = recv(client_sock, client_message, BUFF_SIZE, 0))>0)
+    {
+	if(read_size==BUFF_SIZE)
+	{
+		printf("!!!!!!!!!!!limit buffer\n");
+	
+	}
+        printf("size read:%i\n", read_size);
+	sleep(20);
+	
+	processData(client_message,read_size);	
+	
+	//send mesage back to client
+	write(client_sock, client_message, strlen(client_message));    
+    }
+    if(read_size==0)
+    {
+	puts("Client disconnectd");
+	fflush(stdout);
+    }
+    else if( read_size == -1)
+    { 
+	perror("recv failed");
+    }
+
+   close(client_sock); 
+
+}
+
+void processData(char recvBuff[200000000],int size){
+
+    //char recvBuff[size];
+    //recvBuff = irecvBuff;
     int n= 0, k;
-    char recvBuff[BUFF_SIZE];
+    //char recvBuff[BUFF_SIZE];
     char *saveID, *saveCols;	
     int count = 0;
     char *start, *end, *pch;
     char copy[100];
-
-    while(1)
-    {
 	char *saveDSM=NULL;
 	pch =NULL;
 	start=NULL;
 	end=NULL;
-
-	printf("SOCKET INITIALIZED! listening to connections...\n");
-        connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
-
-	n = recv(connfd,&recvBuff, BUFF_SIZE , 0);
-        printf("Rec: %d bytes \n", n);
 	
-	//pch=malloc(sizeof(char)*strlen(recvBuff));
-	printf("size of recvBuff:%d\n",strlen(recvBuff));
 	pch = strtok(recvBuff, ":");
 	while(pch != NULL)
 	{
@@ -236,7 +277,6 @@ void *taskIreceive(void *arg){
 	    }	
 	    else if(count==3)
 	    {
-		//printf("pch:%s\n",pch);
 		saveDSM = emalloc(sizeof(char)*(strlen(pch)+1));
 		printf("saveDSM malloc ok\n");
 		strcpy(saveDSM,pch);
@@ -252,22 +292,23 @@ void *taskIreceive(void *arg){
 	}
 
         count=0;
-	printf("%s - %s \n",start, end);
+	//printf("%s - %s \n",start, end);
 	printf("checking message integrity...\n");
 	if(start!=NULL && end!=NULL && strcmp(start,"$")==0 && strcmp(end,"$")==0){	
 		printf("MESSAGE SUCCESSFUL RECEIVED \n");		
 	}
 	else{
-  		printf("DSM: %s\n",saveDSM);	
+  		//printf("DSM: %s\n",saveDSM);	
 		printf("ERROR integrity from DSM\n");	
 		//exit(EXIT_FAILURE);	
-		continue;
+//		continue;
+		return NULL;
 	}
 
 	printf("START :%s\n", start);
 	printf("%s\n", saveID );
 	printf("%s\n", saveCols);
-        printf("%s\n", saveDSM);
+        //printf("%s\n", saveDSM);
 	printf("The lenght from dsm is: %i\n",strlen(saveDSM)); 
 		
 	int i=0, j=0;
@@ -314,7 +355,7 @@ void *taskIreceive(void *arg){
 	toConv = malloc(sizeof(char*));
 	for(iter=0; saveDSM[iter]!='\0';iter++)
 	{	
-	    printf("%c",saveDSM[iter]);
+	    //printf("%c",saveDSM[iter]);
 	    if (saveDSM[iter]==',')
 	    {
 		col++;
@@ -346,6 +387,7 @@ void *taskIreceive(void *arg){
 
 	printf(" convert...\n");
 	
+	/*
         for(i=0; i<dsm->cols-1;i++)
 	{
 	    for(j=0;j< (dsm->cols)-1;j++)
@@ -355,7 +397,7 @@ void *taskIreceive(void *arg){
 	    }
 	    printf(";");
 	}
-	
+	*/
 
 	//matrix.dsm = (char*) malloc((sizeof(recvBuff) +1 )* sizeof(char));
 	//strcpy(matrix.dsm, recvBuff);
@@ -387,25 +429,9 @@ void *taskIreceive(void *arg){
 	printf("ok\n");
 
 		
-//	free(dsm);	
-	printf("\n");   
-        //ticks = time(NULL);
-	//snprintf("hey", sizeof("hey"), "HELLO from Cluster", NULL );     
-	//write(connfd, sendBuff, strlen(sendBuff));
-	write(connfd, "Hello from cluster", strlen("Hello from cluster"));	
-	//recvBuff = {0};
 
-	printf("CONNECTION RECEIVED \n");	
-	memset(recvBuff,'\0',sizeof(char)*BUFF_SIZE);
-	memset(sendBuff,'\0',sizeof(char)*4096);
-
-	close(connfd);
-	sleep(1);
-
-    }
 
 }
-
 	
 int** initializeTestDsm()
 {
