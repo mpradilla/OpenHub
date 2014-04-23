@@ -7,7 +7,7 @@
  *
  *
  * */
-
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,15 +21,21 @@
 #include <sys/types.h>
 #include <time.h>
 #include <math.h>
-#include "../include/queue.h"
-#include "../include/propagation_cost.h"
-
+#include "queue.h"
+#include "propagation_cost.h"
+#include "thpool.h"
+#include "openhub_daemon.h"
 
 void *taskIreceive(void *arg);
+void *task_receive_MPI(void *arg);
+void * task_send_MPI(void *arg);
+
+void *analyze_data(void*arg);
+
 float calculate_propagation_cost( int** dsm, int size);
 int** initializeTestDsm();
 
-void processData(char recvBuff[2000000000],int size);
+void processData(char recvBuff[2000000000],int size, dataqueue* dataqueue_p);
 int comm_rank, comm_size, thread_level_provided;
 
 static const int BUFF_SIZE = 200000000;
@@ -86,6 +92,15 @@ int main(int argc, char **argv){
 		printf("MPI_Init_thread failed with mpi_err=%d\n", mpi_err);
 		exit(-1);
     }
+
+
+    /*Create a type for struct data_dsm 
+    const int nitems=3;
+    int blocklengths[3] = {1,1,1}; 
+    MPI_Datatype types[3] = {MPI_INT, MPI_INT, }
+*/
+
+
     MPI_Comm_rank(MPI_COMM_WORLD,&comm_rank);	/* ID PROCESS IDENTIFIER */
     MPI_Comm_size(MPI_COMM_WORLD,&comm_size);	/* GET PROCESSES SIZE */
 	
@@ -106,45 +121,123 @@ int main(int argc, char **argv){
         
 	//Create Queue to handle incoming data
 	dataqueue* workQueue;	
+        workQueue = dataqueue_init();
 	
+	//Create thread pool to send data
+	thpool_t* threadpool_Isend;
+	threadpool_Isend = thpool_init(4);	
+
+
 	//Thread para recibir y guardar los datos
 	pthread_create(&Thread_receive, (void*)NULL, (void *) taskIreceive, (void *) workQueue);	
+	
 
+	
+	pthread_t Thread_send1;
+	pthread_t Thread_send2;
+	pthread_t Thread_send3;
+	pthread_t Thread_send4;
+
+	
+	parameters_item *params;
+ 	params = (parameters_item *) malloc(sizeof(parameters_item));
+	params->queue = workQueue;
+	
+	params->sensor = 1;
+	pthread_create(&Thread_send1, (void*)NULL, (void *) task_send_MPI, (void *)params);
+/* 	sleep(1);
+	params->sensor = 2;
+	pthread_create(&Thread_send2, (void*)NULL, (void *) task_send_MPI, (void *)params);
+ 	sleep(1);
+	params->sensor = 3;
+	pthread_create(&Thread_send3, (void*)NULL, (void *) task_send_MPI, (void *)params);
+ 	sleep(1);
+	params->sensor = 4;
+	pthread_create(&Thread_send4, (void*)NULL, (void *) task_send_MPI, (void *)params);
+*/
+
+	while(1){
+		sleep(10);
+	}
+	
+
+	/*
         while(1)
 	{
+ 	     if(workQueue->size >0)
+	     {
+		thpool_add_work(threadpool_Isend, (void *) task_send_MPI, (void *)workQueue);
+	     }	
 		printf(".");
 		sleep(1); 
 	}
-
-    }
-	
+	pthread_join(Thread_receive, NULL);
+        
+	*/
+	}
 	/* SLAVE PROCESS */
 	else{
 
 		printf("here from slave...");
-
 		// Get the name of the processor
 		MPI_Get_processor_name(procname, &lenname);
- 		
+
+		printf("Hello world from slave process %s, rank %d out of %d processors\n",procname, comm_rank, comm_size);
 		//Create thread to receive the data
        		//pthread_t Thread_receive_R1;
 
 		//Create queue to handle incomming data
-		//dataqueue* workQueue_R1;
-		int **test;
-   		test = initializeTestDsm();
+		dataqueue* workQueue_R1;
+	        workQueue_R1 = dataqueue_init();	
 
-		float ans = calculate_propagation_cost( test, 6);
-		printf("propagation Cost: %.4f\n", ans); 
+		MPI_Status status;
+		data_dsm *data_recv;
+		int rc;
+		char outmsg='a';
+		
+
+		while(1){
+   		    printf("waiting job...\n");	
+		    rc = MPI_Recv(&data_recv, sizeof(data_dsm*), MPI_BYTE , 0, 1 , MPI_COMM_WORLD, &status);  
+
+		    int number_amount;
+		    MPI_Get_count(&status, MPI_INT, &number_amount);			
+		    printf("I receive %d number from 0", number_amount);
+
+		    data_recv = malloc(sizeof(data_dsm*));
+		    printf("JOB RECEIVED id: %i\n", data_recv->id);
+		    //printf("dsm: %i", data_recv->dsm[0][0]);
+		    //DO ANALYSIS over received data
+		    int **test;
+   		    test = initializeTestDsm();
+
+		    float ans = calculate_propagation_cost( test, 6);
+		    printf("propagation Cost: %.4f\n", ans);
+		
+ 		    //Send Message to indicate task finished and to receive new task
+		    MPI_Send(&outmsg, 1, MPI_CHAR, 0 , 1 , MPI_COMM_WORLD);
+		}
+ 
 		//Initialize Queue
 		//worQueue_R1 = dataqueue_init();
-			
+/*			
+		//params definition
+		parameters_item *params;
+ 		params = (parameters_item *) malloc(sizeof(parameters_item));
+		params->queue = workQueue_R1;
+		params->sensor = comm_rank;
+
 		//Thread para recibir y guardar los datos
-//		pthread_create(&Thread_receive_R1, (void*)NULL, (void*) task_receive_MPI, (void *) workQueue_R1);		
+		//pthread_create(&Thread_receive_R1, (void*)NULL, (void*) task_receive_MPI, (void *)params );		
 
 		// PHello from master process
-		printf("Hello world from slave process %s, rank %d out of %d processors\n",procname, comm_rank, comm_size);
-		
+	
+		//ANALYZE IN NODE ELEMENTS IN QUEUE
+		analyze_data((void*)params);
+*/
+
+
+	
 		//data_dsm* pulledData;
 		/*
 //		dataqueue* dataqueue_p = ((dataqueue *)arg);
@@ -177,6 +270,9 @@ void *taskIreceive(void *arg){
     struct sockaddr_in server,client;
     static char client_message[200000000];
     static char recvBuff[200000000];
+
+    dataqueue *dataqueue_p = ((dataqueue*)arg);
+
 
     //create Socket
     socket_desc = socket(AF_INET, SOCK_STREAM,0);
@@ -246,35 +342,25 @@ void *taskIreceive(void *arg){
     while(1) 
     {
 	read_size = recv(client_sock, client_message, BUFF_SIZE, 0);
-	printf("size read:%i\n", read_size);
+//	printf("size read:%i\n", read_size);
 
 	if(read_size>0)
 	{
-	    //sleep(20);
        	    printf("-%c,-%c ",client_message[0], client_message[read_size]);
-/*	    
-	    char * new = malloc((actualSize+read_size)*sizeof(char));
-  	    memcpy(new, recvBuff, actualSize*sizeof(char));
-            memcpy(new+actualSize
-*/
-	    //Append buffer to recvBuff
-	    //recvBuff = realloc(recvBuff,(actualSize+read_size)*sizeof(char));
   	    memcpy(recvBuff+actualSize, client_message, read_size*sizeof(char)); 
-/*
-   	    char newArray[actualSize+read_size];
-            memcpy(newArray, client_message, read_size+1);	    
-	    memcpy(recvBuff, newArray, actualSize+read_size);
-*/  
             actualSize+=read_size;
             printf("BUFFER: %s",recvBuff);
 	
 	}
-	printf("last char: %c", client_message[read_size-1]);
+//	printf("last char: %c", client_message[read_size-1]);
 	if(recvBuff[actualSize-1]=='$'){
 
        	    printf("No more data -%c,-%c ",client_message[0], client_message[read_size-1]);
             printf("%s",client_message);
-	    processData(recvBuff,actualSize);	
+
+	    //Call method to process reveived data and add it to queue
+	    processData(recvBuff,actualSize, dataqueue_p);	
+
 	    //send mesage back to client
 	    write(client_sock, "ok", strlen("ok"));    
     	
@@ -292,7 +378,66 @@ void *taskIreceive(void *arg){
 
 }
 
-void processData(char recvBuff[200000000],int size){
+void *task_send_MPI(void *arg){
+
+    int node;
+    MPI_Request request;
+    MPI_Status status;
+
+    data_dsm* pulledData;
+    data_dsm* data_send;
+    char inmsg='x';
+
+    parameters_item *params = ((parameters_item *)arg);
+    dataqueue *dataqueue_p = params->queue;
+    node = params->sensor;
+    printf("THE ID FORM THREAD: %i\n", node);  
+   
+    while(1)
+    {    
+   	 pulledData = dataqueue_remove(dataqueue_p);
+    
+         if(pulledData != NULL){
+   
+	     data_send = malloc(sizeof(*pulledData));
+       	     memcpy(data_send, pulledData, sizeof(*pulledData));
+	 //    free(pulledData);
+ 	
+	      //SEND job to NODE 
+	     MPI_Send(&data_send, sizeof(data_dsm*), MPI_BYTE, 1, 1 , MPI_COMM_WORLD);
+	     printf("Job send from node 0, thread num %i", node);
+	     MPI_Recv(&inmsg, 1, MPI_CHAR, 1, 1 , MPI_COMM_WORLD, &status);	
+	     printf("Response received! from node %i", node);
+ 	 } 	
+
+    }   
+	free(params);
+	
+	//MPI_Isend(data_send, sizeof(data_dsm), MPI_BYTE, 1, 0, MPI_COMM_WORLD, &request1);
+
+   return(NULL);
+}
+
+void *task_receive_MPI(void * arg){
+
+
+  return(NULL);
+}
+
+void *analyze_data(void* arg){
+
+    parameters_item *paramsR1 = ((parameters_item*)arg);
+    int sensor = paramsR1->sensor;
+    printf("Analyze Job start in sensor: %i", sensor);
+    
+    return(NULL);
+}
+
+
+
+
+
+void processData(char recvBuff[200000000],int size, dataqueue* dataqueue_p){
 
     //char recvBuff[size];
     //recvBuff = irecvBuff;
@@ -461,8 +606,9 @@ void processData(char recvBuff[200000000],int size){
 
 
 	//ADD DSM TO QUEUE
-	//dataqueue_add(workQueue, mm
-     
+	dataqueue_add(dataqueue_p, dsm);
+    
+        
 	printf("\nFree memory...\n");
         printf("dsm cols: %d\n",dsm->cols);	
 	    int ifree;	
@@ -479,11 +625,8 @@ void processData(char recvBuff[200000000],int size){
 	
 	//matrix=NULL;
 	//matrix=0;
+	
 	printf("ok\n");
-
-		
-
-
 }
 	
 int** initializeTestDsm()
