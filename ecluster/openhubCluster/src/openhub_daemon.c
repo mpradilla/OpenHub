@@ -106,7 +106,7 @@ int main(int argc, char **argv){
 	
     char procname[MPI_MAX_PROCESSOR_NAME];
     int lenname;
-	
+    int position=0;	
 
     /* MASTER DAEMON PROCESS */
     if( comm_rank == 0 ){
@@ -195,16 +195,22 @@ int main(int argc, char **argv){
 		int rc;
 		char outmsg='a';
 		
+		int number_amount;
 
 		while(1){
-   		    printf("waiting job...\n");	
-		    rc = MPI_Recv(&data_recv, sizeof(data_dsm*), MPI_BYTE , 0, 1 , MPI_COMM_WORLD, &status);  
+   		    printf("waiting job...\n");
 
-		    int number_amount;
+		    MPI_Probe(0,0, MPI_COMM_WORLD, &status);
 		    MPI_Get_count(&status, MPI_INT, &number_amount);			
+		    
+		    int buffer[number_amount];
+		    MPI_Unpack( buffer, number_amount, MPI_PACKED, 0 , 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE); 
+	
+		   // data_recv = (data_dsm*)malloc(sizeof(data_dsm)*number_amount);
+		  //  rc = MPI_Recv(&data_recv, sizeof(data_dsm*), MPI_BYTE , 0, 1 , MPI_COMM_WORLD, MPI_STATUS_IGNORE);  
+
 		    printf("I receive %d number from 0", number_amount);
 
-		    data_recv = malloc(sizeof(data_dsm*));
 		    printf("JOB RECEIVED id: %i\n", data_recv->id);
 		    //printf("dsm: %i", data_recv->dsm[0][0]);
 		    //DO ANALYSIS over received data
@@ -213,7 +219,8 @@ int main(int argc, char **argv){
 
 		    float ans = calculate_propagation_cost( test, 6);
 		    printf("propagation Cost: %.4f\n", ans);
-		
+		    
+		    free(data_recv);
  		    //Send Message to indicate task finished and to receive new task
 		    MPI_Send(&outmsg, 1, MPI_CHAR, 0 , 1 , MPI_COMM_WORLD);
 		}
@@ -387,6 +394,7 @@ void *task_send_MPI(void *arg){
     data_dsm* pulledData;
     data_dsm* data_send;
     char inmsg='x';
+    int position=0;
 
     parameters_item *params = ((parameters_item *)arg);
     dataqueue *dataqueue_p = params->queue;
@@ -399,14 +407,82 @@ void *task_send_MPI(void *arg){
     
          if(pulledData != NULL){
    
+	/*
 	     data_send = malloc(sizeof(*pulledData));
-       	     memcpy(data_send, pulledData, sizeof(*pulledData));
-	 //    free(pulledData);
- 	
+	     memcpy(data_send, pulledData, sizeof(pulledData));
+	     free(pulledData);
+	 */	
+	//     int m[data_send->cols][data_send->cols];
+	     	
+    int a[6][6];
+ 
+    a[0][0]=0;    
+    a[0][1]=1;    
+    a[0][2]=1;    
+    a[0][3]=0;    
+    a[0][4]=0;    
+    a[0][5]=0;    
+
+    a[1][0]=0;    
+    a[1][1]=0;    
+    a[1][2]=0;    
+    a[1][3]=1;    
+    a[1][4]=0;    
+    a[1][5]=0;    
+
+    a[2][0]=0;    
+    a[2][1]=0;    
+    a[2][2]=0;    
+    a[2][3]=0;    
+    a[2][4]=1;    
+    a[2][5]=0;    
+
+    a[3][0]=0;    
+    a[3][1]=0;    
+    a[3][2]=0;    
+    a[3][3]=0;    
+    a[3][4]=0;    
+    a[3][5]=0;    
+
+    a[4][0]=0;    
+    a[4][1]=0;    
+    a[4][2]=0;    
+    a[4][3]=0;    
+    a[4][4]=0;    
+    a[4][5]=1;    
+
+    a[5][0]=0;    
+    a[5][1]=0;    
+    a[5][2]=0;    
+    a[5][3]=0;    
+    a[5][4]=0;    
+	     
+//	     int **test;
+  // 	     test = initializeTestDsm();
+
+  	     MPI_Datatype column;
+  	     MPI_Type_vector(6,1,6, MPI_INT, &column);
+	     MPI_Type_commit(&column);
+	     MPI_Send(1, sizeof(int), MPI_INT, 1, 1, MPI_COMM_WORLD);		
+			
+	     
+/*
+
+	     //int size = data_send->cols;
+	     //int m[4][4] = {1,1,1,1, 0,0,0,0, 1,1,1,1 ,0,0,0,0 };
+             int **mm;
+	     int size = 6;
+	     char buffer[100000000];
+	     MPI_Pack(&test, size*size, MPI_INT, buffer,100000000, &position , MPI_COMM_WORLD); 
+	     MPI_Send( buffer, position , MPI_PACKED, 1, 1, MPI_COMM_WORLD);
+	     
+	  //   free(data_send);
 	      //SEND job to NODE 
-	     MPI_Send(&data_send, sizeof(data_dsm*), MPI_BYTE, 1, 1 , MPI_COMM_WORLD);
+	     //MPI_Send(&data_send, sizeof(data_dsm), MPI_BYTE, 1, 1 , MPI_COMM_WORLD);
+*/
 	     printf("Job send from node 0, thread num %i", node);
 	     MPI_Recv(&inmsg, 1, MPI_CHAR, 1, 1 , MPI_COMM_WORLD, &status);	
+
 	     printf("Response received! from node %i", node);
  	 } 	
 
