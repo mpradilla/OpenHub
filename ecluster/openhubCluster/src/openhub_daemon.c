@@ -35,6 +35,7 @@ void *analyze_data(void*arg);
 float calculate_propagation_cost( int** dsm, int size);
 int** initializeTestDsm();
 
+void freeDoublePointer(int **dsm, int size);
 void processData(char recvBuff[2000000000],int size, dataqueue* dataqueue_p);
 int comm_rank, comm_size, thread_level_provided;
 
@@ -44,7 +45,7 @@ static const int BUFF_SIZE = 200000000;
 /*
 struct matrix{
 
-	int id;
+	char id[50];
 	int cols;
 	int **dsm;
 	//Matrix *dsm;
@@ -124,8 +125,8 @@ int main(int argc, char **argv){
         workQueue = dataqueue_init();
 	
 	//Create thread pool to send data
-	thpool_t* threadpool_Isend;
-	threadpool_Isend = thpool_init(4);	
+//	thpool_t* threadpool_Isend;
+//	threadpool_Isend = thpool_init(4);	
 
 
 	//Thread para recibir y guardar los datos
@@ -145,7 +146,7 @@ int main(int argc, char **argv){
 	
 	params->sensor = 1;
 	pthread_create(&Thread_send1, (void*)NULL, (void *) task_send_MPI, (void *)params);
-/* 	sleep(1);
+ 	/*sleep(1);
 	params->sensor = 2;
 	pthread_create(&Thread_send2, (void*)NULL, (void *) task_send_MPI, (void *)params);
  	sleep(1);
@@ -159,8 +160,8 @@ int main(int argc, char **argv){
 	while(1){
 		sleep(10);
 	}
-	
-
+   	
+        free(workQueue);
 	/*
         while(1)
 	{
@@ -187,42 +188,98 @@ int main(int argc, char **argv){
        		//pthread_t Thread_receive_R1;
 
 		//Create queue to handle incomming data
-		dataqueue* workQueue_R1;
-	        workQueue_R1 = dataqueue_init();	
+//		dataqueue* workQueue_R1;
+//	        workQueue_R1 = dataqueue_init();	
 
 		MPI_Status status;
-		data_dsm *data_recv;
-		int rc;
-		char outmsg='a';
+		//data_dsm *data_recv;
 		
-		int number_amount;
+		//int **dsm;
 
+		int rc;
+		int outmsg;
+		int test[2][2];		
+		int number_amount;
+		char check;
 		while(1){
    		    printf("waiting job...\n");
 
-		    MPI_Probe(0,0, MPI_COMM_WORLD, &status);
-		    MPI_Get_count(&status, MPI_INT, &number_amount);			
+//		    MPI_Probe(0,0, MPI_COMM_WORLD, &status);
+//		    MPI_Get_count(&status, MPI_INT, &number_amount);			
 		    
-		    int buffer[number_amount];
-		    MPI_Unpack( buffer, number_amount, MPI_PACKED, 0 , 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE); 
+		
+		    MPI_Recv(&outmsg, 1, MPI_INT , 0, 1 , MPI_COMM_WORLD, MPI_STATUS_IGNORE);  
+		    printf("receive dsm size %i\n", outmsg);
+		    
+		  /*  dsm = malloc((sizeof(int*))*outmsg);
+	            int y=0;
+                    for(y=0; y<(outmsg);y++)
+	            {
+      		       dsm[y]=malloc((sizeof(int*))*outmsg);
+			
+			
+	             }*/ 
+
+		    int dd[outmsg][outmsg];
+		    MPI_Recv(&(dd[0][0]), outmsg*outmsg, MPI_INT, 0, 1, MPI_COMM_WORLD, &status); 
+			
+		    int a,b;
+		    for(a=0;a<outmsg;a++){
+
+			for(b=0;b<outmsg;b++){
+				printf("%i",dd[a][b]);
+				if(dd[a][b]!=1 && dd[a][b]!=0){
+					printf("********************************  ");
+					printf("index: %i, %i, value:%i\n",a,b, dd[a][b]);	
+					}
+				}
+			    printf("\n");
+			}
+
+
+
+
+
+	//	    freeDoublePointer(dsm, outmsg);	
+
+		//    int buffer[number_amount];
+		//    MPI_Unpack( buffer, number_amount, MPI_PACKED, 0 , 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE); 
 	
 		   // data_recv = (data_dsm*)malloc(sizeof(data_dsm)*number_amount);
 		  //  rc = MPI_Recv(&data_recv, sizeof(data_dsm*), MPI_BYTE , 0, 1 , MPI_COMM_WORLD, MPI_STATUS_IGNORE);  
 
-		    printf("I receive %d number from 0", number_amount);
+		//    printf("I receive %i number from 0\n", number_amount);
 
-		    printf("JOB RECEIVED id: %i\n", data_recv->id);
+		//    printf("JOB RECEIVED id: %i\n", data_recv->id);
 		    //printf("dsm: %i", data_recv->dsm[0][0]);
 		    //DO ANALYSIS over received data
 		    int **test;
    		    test = initializeTestDsm();
 
-		    float ans = calculate_propagation_cost( test, 6);
+		    float ans = calculate_propagation_cost(dd, outmsg);
 		    printf("propagation Cost: %.4f\n", ans);
-		    
-		    free(data_recv);
+		    //freeDoublePointer(test,6);		    
+
+
+		    check ='a';
+//		    free(data_recv);
  		    //Send Message to indicate task finished and to receive new task
-		    MPI_Send(&outmsg, 1, MPI_CHAR, 0 , 1 , MPI_COMM_WORLD);
+		    MPI_Send(&check, 1, MPI_CHAR, 0 , 1 , MPI_COMM_WORLD);
+
+			
+		
+		    printf("\nFree memory...\n");
+
+        	//    printf("dsm cols: %d\n",outmsg);	
+/*	            int ifree;	
+	    	    for(ifree=0; ifree<outmsg;ifree++)
+	    	    {
+	        	free(dsm[ifree]);	
+	            }
+	            printf("Inner pointer freed\n");
+		    free(dsm);
+*/
+
 		}
  
 		//Initialize Queue
@@ -356,14 +413,14 @@ void *taskIreceive(void *arg){
        	    printf("-%c,-%c ",client_message[0], client_message[read_size]);
   	    memcpy(recvBuff+actualSize, client_message, read_size*sizeof(char)); 
             actualSize+=read_size;
-            printf("BUFFER: %s",recvBuff);
+    //        printf("BUFFER: %s",recvBuff);
 	
 	}
 //	printf("last char: %c", client_message[read_size-1]);
 	if(recvBuff[actualSize-1]=='$'){
 
        	    printf("No more data -%c,-%c ",client_message[0], client_message[read_size-1]);
-            printf("%s",client_message);
+      //      printf("%s",client_message);
 
 	    //Call method to process reveived data and add it to queue
 	    processData(recvBuff,actualSize, dataqueue_p);	
@@ -382,7 +439,7 @@ void *taskIreceive(void *arg){
     	}
     }
     close(client_sock); 
-
+    free(dataqueue_p);
 }
 
 void *task_send_MPI(void *arg){
@@ -395,6 +452,8 @@ void *task_send_MPI(void *arg){
     data_dsm* data_send;
     char inmsg='x';
     int position=0;
+    int test[2][2];
+    int ss;
 
     parameters_item *params = ((parameters_item *)arg);
     dataqueue *dataqueue_p = params->queue;
@@ -407,66 +466,105 @@ void *task_send_MPI(void *arg){
     
          if(pulledData != NULL){
    
-	/*
+   	     printf("DATA pulled from queue in node %i\n", node);
+		
+	
 	     data_send = malloc(sizeof(*pulledData));
-	     memcpy(data_send, pulledData, sizeof(pulledData));
-	     free(pulledData);
-	 */	
-	//     int m[data_send->cols][data_send->cols];
-	     	
-    int a[6][6];
- 
-    a[0][0]=0;    
-    a[0][1]=1;    
-    a[0][2]=1;    
-    a[0][3]=0;    
-    a[0][4]=0;    
-    a[0][5]=0;    
-
-    a[1][0]=0;    
-    a[1][1]=0;    
-    a[1][2]=0;    
-    a[1][3]=1;    
-    a[1][4]=0;    
-    a[1][5]=0;    
-
-    a[2][0]=0;    
-    a[2][1]=0;    
-    a[2][2]=0;    
-    a[2][3]=0;    
-    a[2][4]=1;    
-    a[2][5]=0;    
-
-    a[3][0]=0;    
-    a[3][1]=0;    
-    a[3][2]=0;    
-    a[3][3]=0;    
-    a[3][4]=0;    
-    a[3][5]=0;    
-
-    a[4][0]=0;    
-    a[4][1]=0;    
-    a[4][2]=0;    
-    a[4][3]=0;    
-    a[4][4]=0;    
-    a[4][5]=1;    
-
-    a[5][0]=0;    
-    a[5][1]=0;    
-    a[5][2]=0;    
-    a[5][3]=0;    
-    a[5][4]=0;    
+	     /*data_send->dsm = malloc(sizeof(int*)*pulledData->cols);
+	     int y=0;
+             for(y=0; y<(pulledData->cols);y++)
+	     {
+      		data_send->dsm[y]=malloc(sizeof(int*)*pulledData->cols);
+	     } 
+	     //memcpy(data_send->dsm, pulledData->dsm, sizeof(data_send->dsm));
+	*/
+	     memcpy(data_send, pulledData, sizeof(*data_send));
 	     
-//	     int **test;
-  // 	     test = initializeTestDsm();
+	    // data_send = pulledData;
 
-  	     MPI_Datatype column;
+	     int colss = pulledData->cols;
+             printf("- - num of cols %i\n", colss);
+
+	     
+	    // memcpy(data_send->id,pulledData->id, sizeof(data_send->id));	
+	     
+	     char sp[50];
+	     //strcpy(sp, pulledData->id);
+  	     
+	
+             int p;	
+	     for(p=0; p<50;p++){
+               printf("%c", data_send->id[p]);
+	     }
+	     printf("\n");
+
+//	     memcpy(data_send->dsm, pulledData->dsm, sizeof(data_send->dsm));
+
+
+	     //printf("%i", pulledData->dsm[0][0]);
+	     //printf("%i", pulledData->dsm[1][0]);
+//	     printf("%i", data_send->dsm[1][1]);
+	     //printf("%i", pulledData->dsm[0][1]);
+	     int matrix[colss][colss];
+	
+	     int i,j;
+	     for(i=0;i<colss; i++){
+		for(j=0;j<colss;j++){
+		    //memcpy(matrix[i][j], pulledData->dsm[i][j], sizeof(matrix[i][j]));
+		    matrix[i][j] = data_send->dsm[i][j];
+		    //matrix[i][j] = 0;
+	     	    printf("%i", data_send->dsm[i][j]);
+		    //printf("%i", pulledData->dsm[i][j]);
+		}
+		printf("\n");
+	     }
+             sleep(2);	
+ 	     //free(pulledData);            
+
+	     
+
+/*
+ *
+ *
+	     memcpy(data_send->id, pulledData->id, sizeof(data_send->id));
+	     memcpy(data_send->cols, pulledData->cols, sizeof(data_send->cols));
+	  	
+	     data_send->dsm = malloc(sizeof(int*)*data_send->cols);
+	     int y=0;
+             for(y=0; y<(data_send->cols);y++)
+	     {
+      		data_send->dsm[y]=malloc(sizeof(int*)*data_send->cols);
+	     } 
+	     memcpy(data_send->dsm, pulledData->dsm, sizeof(data_send->dsm));
+	     	     
+
+	     printf("cols pulled %i", pulledData->cols);
+	     printf("cols ss  %i", data_send->cols);
+	     printf("from pulled data. id:"); 
+	     int p;
+	     char sp[50];
+  	     memcpy(sp, data_send->id, strlen(sp));
+	     for(p=0; p<50;p++){
+               printf("%i %c", p, sp[p]);
+	     }
+	     printf("\n");
+	     printf("Size dsm %i\n", data_send->cols);
+	     
+*/
+
+	     //pulledData free is done in node 0 thread Ireceive	
+	     //free(pulledData);
+	 	
+	//   int m[data_send->cols][data_send->cols];
+	     
+        //   int **test;
+        //   test = initializeTestDsm();
+/*  	     
+	     MPI_Datatype column;
   	     MPI_Type_vector(6,1,6, MPI_INT, &column);
 	     MPI_Type_commit(&column);
-	     MPI_Send(1, sizeof(int), MPI_INT, 1, 1, MPI_COMM_WORLD);		
-			
-	     
-/*
+	     MPI_Send(1, sizeof(int), MPI_INT, 1, 1, MPI_COMM_WORLD);		   
+
 
 	     //int size = data_send->cols;
 	     //int m[4][4] = {1,1,1,1, 0,0,0,0, 1,1,1,1 ,0,0,0,0 };
@@ -475,24 +573,56 @@ void *task_send_MPI(void *arg){
 	     char buffer[100000000];
 	     MPI_Pack(&test, size*size, MPI_INT, buffer,100000000, &position , MPI_COMM_WORLD); 
 	     MPI_Send( buffer, position , MPI_PACKED, 1, 1, MPI_COMM_WORLD);
-	     
-	  //   free(data_send);
-	      //SEND job to NODE 
-	     //MPI_Send(&data_send, sizeof(data_dsm), MPI_BYTE, 1, 1 , MPI_COMM_WORLD);
-*/
-	     printf("Job send from node 0, thread num %i", node);
-	     MPI_Recv(&inmsg, 1, MPI_CHAR, 1, 1 , MPI_COMM_WORLD, &status);	
+*/	     //SEND job to NODE 
+		test[0][0]= 1;
+		test[0][1]= 0;
+		test[1][0]= 0;
+		test[1][1]=1;
+            // test = initializeTestDsm();
+	     ss = 2;	   
+	     MPI_Send(&colss, 1, MPI_INT, node, 1 , MPI_COMM_WORLD);		
+	     MPI_Send(&(pulledData->dsm[0][0]), (2)*(2), MPI_INT, node, 1, MPI_COMM_WORLD);
+	     printf("Job send from node 0, thread num %i\n", node);
+	     printf("Waiting response from node %i...\n", node);
+	     MPI_Recv(&inmsg, 1, MPI_CHAR, node, 1 , MPI_COMM_WORLD, &status);	
+	     printf("Response received! from node %i with msg:%c\n", node,&inmsg);
 
-	     printf("Response received! from node %i", node);
- 	 } 	
+
+	     freeDoublePointer(data_send->dsm,data_send->cols);
+	     free(data_send);
+	
+	     freeDoublePointer(pulledData->dsm, pulledData->cols);
+	     free(pulledData);
+/*
+	  //   free(pulledData);
+	     MPI_Send(&inmsg, 1, MPI_CHAR, node, 1 , MPI_COMM_WORLD);		
+	     printf("Job send from node 0, thread num %i\n", node);
+	     printf("Waiting response from node %i...\n", node);
+	     MPI_Recv(&inmsg, 1, MPI_CHAR, node, 1 , MPI_COMM_WORLD, &status);	
+	     printf("Response received! from node %i with msg:%c\n", node,&inmsg);
+ 	*/ 
+	} 	
 
     }   
+        free(dataqueue_p);
 	free(params);
-	
+      	
 	//MPI_Isend(data_send, sizeof(data_dsm), MPI_BYTE, 1, 0, MPI_COMM_WORLD, &request1);
 
    return(NULL);
 }
+
+void freeDoublePointer(int **dsm, int size){
+	int ifree;	
+	for(ifree=0; ifree<size;ifree++)
+	{
+	    free(dsm[ifree]);	
+        }
+        printf("Inner pointer freed\n");
+        free(dsm);
+
+}
+
 
 void *task_receive_MPI(void * arg){
 
@@ -501,7 +631,6 @@ void *task_receive_MPI(void * arg){
 }
 
 void *analyze_data(void* arg){
-
     parameters_item *paramsR1 = ((parameters_item*)arg);
     int sensor = paramsR1->sensor;
     printf("Analyze Job start in sensor: %i", sensor);
@@ -589,19 +718,34 @@ void processData(char recvBuff[200000000],int size, dataqueue* dataqueue_p){
 	data_dsm  *dsm;
 	dsm = (data_dsm*)malloc(sizeof(data_dsm));	
 
-	dsm->id = atoi(saveID);
+	char sha[50]= "not initialized...";
+	
+	//memcpy(sha, &saveID, strlen(sha));
+	strncpy(sha,saveID,strlen(saveID)*sizeof(char));
+	//sha[49]='\0';
+	memcpy(dsm->id, sha, sizeof(dsm->id));	
+
+	//strcpy(dsm->id, saveID);
+        
+	int p;	
+	for(p=0; p<50;p++){
+               printf("%c",dsm->id[p]);
+	     }
+	     printf("\n");
+	
+	//dsm->id = ;
 	dsm->cols = atoi(saveCols);
         
 
 	printf("Free variables...\n");
 	free(saveID);
-	printf("1\n");
+	//printf("1\n");
 	free(saveCols);
-	printf("2\n");
+	//printf("2\n");
 	free(end);
-	printf("3\n");
+	//printf("3\n");
 	free(start);
-	printf("4\n");
+	//printf("4\n");
 	//free(pch);
 	printf("ok\n");
         	
@@ -610,7 +754,7 @@ void processData(char recvBuff[200000000],int size, dataqueue* dataqueue_p){
 	dsm->dsm  = malloc(sizeof(int*)*dsm->cols);
 	for(rownum=0; rownum<(dsm->cols); rownum++)
 	{
-	    dsm->dsm[rownum] = malloc(sizeof(int)*dsm->cols);
+	    dsm->dsm[rownum] = malloc(sizeof(int)*(dsm->cols));
 	}
  	printf("Memory Allocated\n");	
 
@@ -682,9 +826,17 @@ void processData(char recvBuff[200000000],int size, dataqueue* dataqueue_p){
 
 
 	//ADD DSM TO QUEUE
-	dataqueue_add(dataqueue_p, dsm);
+	/*printf("JOB ADDED TO QUEUE with id:");
+	     int p;
+	     char cp[50];
+	     memcpy(cp,dsm->id, 50);
+	     for(p=0; p<50;p++){
+               printf("%c", cp[p]);
+	     }
+	     printf("\n");*/
+	dataqueue_add(dataqueue_p,dsm);
     
-        
+       /* 
 	printf("\nFree memory...\n");
         printf("dsm cols: %d\n",dsm->cols);	
 	    int ifree;	
@@ -692,13 +844,13 @@ void processData(char recvBuff[200000000],int size, dataqueue* dataqueue_p){
 	    {
 		//printf("_\n");
 	        free(dsm->dsm[ifree]);	
-		printf("ifree:%d\n",ifree);
+	//	printf("ifree:%d\n",ifree);
 	    }
 	printf("Inner pointer freed\n");
 	//dsm.dsm='\0';	 
 	free(dsm->dsm);
 	dsm->dsm = NULL;
-	
+	*/
 	//matrix=NULL;
 	//matrix=0;
 	

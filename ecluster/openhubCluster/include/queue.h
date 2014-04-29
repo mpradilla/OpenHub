@@ -70,7 +70,7 @@ typedef struct data_item{
 }data_item;
 
 typedef struct data_dsm{
-	int id;			   /* Version Identifier in Database*/
+	char id[50];			   /* Version SHA Identifier in Database*/
 	int cols;		   /*Number of columns of the DSM, also rows number. DSM must be always square*/
 	int **dsm;                 /*Doble pointer for DSM data represetation*/
 
