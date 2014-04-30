@@ -15,16 +15,27 @@ float calculate_propagation_cost(int **InputDsm, int size)
 {
     float ans = -1.0;
 
+
     //Malloc memory for dsm and Copy the pointer to dsm
     int **dsm;
-    dsm = malloc (sizeof(int *)*size);
+    dsm = (int**)malloc(sizeof(int*)*size);
     int row;
     for(row=0;row<size; row++)
     {
-	dsm[row] = malloc(sizeof(int *)*size);
+	dsm[row] = (int*)malloc(sizeof(int)*size);
     }
+   
+   //int dsm[size][size];
 
-    dsm = InputDsm;
+   int l,q;
+   for(l=0;l<size;l++){
+	for(q=0;q<size;q++){
+	     //memcpy(dsm[l][q], InputDsm[l][q], sizeof(int));
+	    dsm[l][q]=InputDsm[l][q];
+	}
+   }
+
+   //dsm = InputDsm;
 
     //printDSM(dsm,6);
 
@@ -83,7 +94,7 @@ float calculate_propagation_cost(int **InputDsm, int size)
 	free(dsm[ifree]);	
     }
     free(dsm);
-
+    
 
    return ans;	
 } 
