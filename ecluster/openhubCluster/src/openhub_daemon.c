@@ -427,6 +427,9 @@ void *task_send_MPI(void *arg){
     parameters_item *params = ((parameters_item *)arg);
     dataqueue *dataqueue_p = params->queue;
     node = params->sensor;
+	
+    free(params);
+
     printf("THE ID FORM THREAD: %i\n", node);  
    
     while(1)
@@ -437,17 +440,16 @@ void *task_send_MPI(void *arg){
    
    	     printf("DATA pulled from queue in node %i\n", node);
 		
-	
-	     data_send = malloc(sizeof(*pulledData));
-	     /*data_send->dsm = malloc(sizeof(int*)*pulledData->cols);
+	     data_send = malloc(sizeof(data_dsm*));
+/*	     data_send->dsm = (int**)malloc(sizeof(int*)*pulledData->cols);
 	     int y=0;
              for(y=0; y<(pulledData->cols);y++)
 	     {
-      		data_send->dsm[y]=malloc(sizeof(int*)*pulledData->cols);
+      		data_send->dsm[y]=(int*)malloc(sizeof(int)*pulledData->cols);
 	     } 
-	     //memcpy(data_send->dsm, pulledData->dsm, sizeof(data_send->dsm));
-		*/
-	     memcpy(data_send, pulledData, sizeof(*data_send));
+	     memcpy(data_send->dsm, pulledData->dsm, sizeof(data_send->dsm));
+*/		
+	   //  memcpy(data_send, pulledData, sizeof(*data_send));
 	     
 	     //data_send = pulledData;
 
@@ -463,7 +465,7 @@ void *task_send_MPI(void *arg){
 	
              int p;	
 	     for(p=0; p<50;p++){
-               printf("%c", data_send->id[p]);
+               printf("%c", pulledData->id[p]);
 	     }
 	     printf("\n");
 
@@ -484,11 +486,15 @@ void *task_send_MPI(void *arg){
 	     for(ii=0;ii<colss; ii++){
 		for(jj=0;jj<colss;jj++){
 		    //  memcpy(matrix[ii][jj], &(pulledData->dsm[ii][jj]), sizeof(matrix[ii][jj]));
-		    matrix[ii][jj] = pulledData->dsm[ii][jj];
-		    
+		    if(sizeof(pulledData->dsm[ii][jj])==sizeof(int)){
+			matrix[ii][jj] = pulledData->dsm[ii][jj];
+		        printf("%d", pulledData->dsm[ii][jj]);
+		    }
+		    else{ 
+			printf("-_-_ Error: In POS i:%i j:%i", ii,jj);
+		     }
 		      //matrix[ii][jj] = 1;
 	     	  //  printf("%i", matrix[i][j]);
-		    printf("%d", pulledData->dsm[ii][jj]);
 		}
 		printf("\n");
 	     }
@@ -531,7 +537,7 @@ void *task_send_MPI(void *arg){
 
     }   
         free(dataqueue_p);
-	free(params);
+	//free(params);
       	
 	//MPI_Isend(data_send, sizeof(data_dsm), MPI_BYTE, 1, 0, MPI_COMM_WORLD, &request1);
 
@@ -709,10 +715,17 @@ void processData(char recvBuff[200000000],int size, dataqueue* dataqueue_p){
 	    } 	
 	    else
 	    {
-		if(row<(dsm->cols-1) && col<(dsm->cols-1))
+		if(row<(dsm->cols) && col<(dsm->cols))
 		{
 		   toInsert= atoi(&saveDSM[iter]);
-		   dsm->dsm[row][col]=toInsert;
+		   char term;
+		   if(toInsert==0 || toInsert==1){
+            	       dsm->dsm[row][col]=toInsert;
+	           }
+		   else{
+		       printf("WARNING:: could not read dependency value, 0 inserted in position instead");
+		       dsm->dsm[row][col]=0;
+		   }
 		} 
 	    }
 	}
