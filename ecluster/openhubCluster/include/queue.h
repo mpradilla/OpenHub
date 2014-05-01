@@ -73,6 +73,9 @@ typedef struct data_dsm{
 	char id[50];			   /* Version SHA Identifier in Database*/
 	int cols;		   /*Number of columns of the DSM, also rows number. DSM must be always square*/
 	int **dsm;                 /*Doble pointer for DSM data represetation*/
+	
+	int analysis;
+	float result;        
 
 	struct data_dsm* next;     /* pointer to next job */
 	struct data_dsm* prev;     /*pointer to previos job*/

@@ -10,6 +10,7 @@
 
 typedef struct parameters_item{
     dataqueue* queue;
+    dataqueue* results;
     int sensor;
 }parameters_item;
 
