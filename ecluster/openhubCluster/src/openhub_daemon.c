@@ -471,6 +471,7 @@ void *task_send_MPI(void *arg){
 //	     printf("%i", data_send->dsm[1][1]);
 	     //printf("%i", pulledData->dsm[0][1]);
 	     int matrix[colss][colss];
+	     
 	     printf("copy dsm to fixed array\n");
 
 	     //memcpy(matrix,pulledData->dsm, sizeof(matrix)); 
