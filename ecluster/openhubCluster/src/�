@@ -42,7 +42,7 @@ int comm_rank, comm_size, thread_level_provided;
 
 static const int BUFF_SIZE = 200000000;
 int ready=0;
-int hugeMatrix[5000][5000];
+
 
 //#define PYTHON_SERVER 10.0.1.118
 #define IN_PORT  5001
@@ -157,16 +157,16 @@ int main(int argc, char **argv){
 	
 	params->sensor = 1;
 	pthread_create(&Thread_send1, (void*)NULL, (void *) task_send_MPI, (void *)params);
- 	sleep(3);
-	params->sensor = 2;
+ 	sleep(1);
+	/*params->sensor = 2;
 	pthread_create(&Thread_send2, (void*)NULL, (void *) task_send_MPI, (void *)params);
- 	sleep(3);
+ 	sleep(1);
 	params->sensor = 3;
 	pthread_create(&Thread_send3, (void*)NULL, (void *) task_send_MPI, (void *)params);
- 	sleep(3);
+ 	sleep(1);
 	params->sensor = 4;
 	pthread_create(&Thread_send4, (void*)NULL, (void *) task_send_MPI, (void *)params);
-
+*/
 
 	while(1){
 	    sleep(10);
@@ -228,8 +228,8 @@ int main(int argc, char **argv){
       		       dsm[y]=(int*)malloc(sizeof(int)*outmsg);
 	            }
 
-//		    int dd[outmsg][outmsg];
-		    MPI_Recv(&(hugeMatrix[0][0]), outmsg*outmsg, MPI_INT, 0, 1, MPI_COMM_WORLD, &status); 
+		    int dd[outmsg][outmsg];
+		    MPI_Recv(&(dd[0][0]), outmsg*outmsg, MPI_INT, 0, 1, MPI_COMM_WORLD, &status); 
 			
 
 		    //COPY FROM 2D Array to double pointer structre
@@ -241,17 +241,17 @@ int main(int argc, char **argv){
 
 			for(b=0;b<outmsg;b++){
 				
-				dsm[a][b]=hugeMatrix[a][b];
-				if(hugeMatrix[a][b]!=1 && hugeMatrix[a][b]!=0){
+				dsm[a][b]=dd[a][b];
+				if(dd[a][b]!=1 && dd[a][b]!=0){
 					//memcpy(dsm[a][b],dd[a][b],sizeof(int));
 					printf("********************************  ");
 					printf("index: %i, %i, value:%i\n",a,b, dsm[a][b]);	
 					}
-				//printf("%i",dsm[a][b]);
+				printf("%i",dsm[a][b]);
 				}
-			    //printf("\n");
+			    printf("\n");
 			}
-
+		    
 		
 		    //DO ANALYSIS over received data
 		    int **test;
@@ -380,13 +380,13 @@ void *taskIreceive(void *arg){
 	read_size = recv(client_sock, client_message, BUFF_SIZE, 0);
 	if(read_size>0)
 	{
-       	    //printf("-%c,-%c ",client_message[0], client_message[read_size]);
+       	    printf("-%c,-%c ",client_message[0], client_message[read_size]);
   	    memcpy(recvBuff+actualSize, client_message, read_size*sizeof(char)); 
             actualSize+=read_size;
 	}
 	if(recvBuff[actualSize-1]=='$'){
 
-       	    //printf("No more data -%c,-%c ",client_message[0], client_message[read_size-1]);
+       	    printf("No more data -%c,-%c ",client_message[0], client_message[read_size-1]);
 
 	    //Call method to process reveived data and add it to queue
 	    processData(recvBuff,actualSize, dataqueue_p);	
@@ -474,7 +474,7 @@ void *task_send_MPI(void *arg){
 	     //printf("%i", pulledData->dsm[1][0]);
 //	     printf("%i", data_send->dsm[1][1]);
 	     //printf("%i", pulledData->dsm[0][1]);
-//	     int matrix[colss][colss];
+	     int matrix[colss][colss];
 	     
 	     printf("copy dsm to fixed array\n");
 
@@ -486,8 +486,8 @@ void *task_send_MPI(void *arg){
 		for(jj=0;jj<colss;jj++){
 		    //  memcpy(matrix[ii][jj], &(pulledData->dsm[ii][jj]), sizeof(matrix[ii][jj]));
 		    if(sizeof(pulledData->dsm[ii][jj])==sizeof(int)){
-			hugeMatrix[ii][jj] = pulledData->dsm[ii][jj];
-		        //printf("%d", pulledData->dsm[ii][jj]);
+			matrix[ii][jj] = pulledData->dsm[ii][jj];
+		        printf("%d", pulledData->dsm[ii][jj]);
 		    }
 		    else{ 
 			printf("-_-_ Error: In POS i:%i j:%i", ii,jj);
@@ -495,7 +495,7 @@ void *task_send_MPI(void *arg){
 		      //matrix[ii][jj] = 1;
 	     	  //  printf("%i", matrix[i][j]);
 		}
-		//printf("\n");
+		printf("\n");
 	     }
 //             sleep(2);	
  	     //free(pulledData);            
@@ -510,7 +510,7 @@ void *task_send_MPI(void *arg){
             // test = initializeTestDsm();
 	     ss = 2;	   
 	     MPI_Send(&colss, 1, MPI_INT, node, 1 , MPI_COMM_WORLD);		
-	     MPI_Send(&(hugeMatrix[0][0]), (colss)*(colss), MPI_INT, node, 1, MPI_COMM_WORLD);
+	     MPI_Send(&(matrix[0][0]), (colss)*(colss), MPI_INT, node, 1, MPI_COMM_WORLD);
 	     printf("Job send from node 0, th:read num %i\n", node);
 	     printf("Waiting response from node %i...\n", node);
 	     MPI_Recv(&response, 1, MPI_FLOAT, node, 1 , MPI_COMM_WORLD, &status);	
@@ -524,7 +524,7 @@ void *task_send_MPI(void *arg){
 	     memcpy(resp->id, &(pulledData->id), sizeof(resp->id));		
    	     dataqueue_add(response_queue, resp);
 
-             //freeDoublePointer(test2,6); 
+             freeDoublePointer(test2,6); 
 	     //free(test2);
 	     //freeDoublePointer(data_send->dsm,data_send->cols);
 	
@@ -757,12 +757,8 @@ void *taskIsend(void *arg){
     dataqueue *dataqueue_p = ((dataqueue*)arg);
     data_dsm *pulledData;
 
-    while(ready==0){
-	 sleep(3);
-    }
-    sleep(17);    
-
-
+    while(ready==0){}
+    
     //create Socket
     sockfd = socket(AF_INET, SOCK_STREAM,0);
     if( sockfd<0 ){
@@ -811,7 +807,7 @@ void *taskIsend(void *arg){
 	     else
 		printf("Result SEND!!!! :) :) :)\n");
 	
-//	     printf("%s\n",buffer);	
+	     printf("%s\n",buffer);	
         }
 	else
 	     sleep(1);
