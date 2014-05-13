@@ -254,12 +254,12 @@ int main(int argc, char **argv){
 
 		
 		    //DO ANALYSIS over received data
-		    int **test;
-   		    test = initializeTestDsm();
+		   // int **test;
+   		   // test = initializeTestDsm();
 
 		    float ans = calculate_propagation_cost(dsm,outmsg);
 		    printf("propagation Cost: %.4f\n", ans);
-		    freeDoublePointer(test,6);		    
+		   // freeDoublePointer(test,6);		    
 		    freeDoublePointer(dsm, outmsg);	
 
 //		    free(data_recv);
@@ -365,46 +365,58 @@ void *taskIreceive(void *arg){
     c = sizeof(struct sockaddr_in);
     
     ready=1;
-
-    //Accept connection from an incoming client
-    client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
-    if ( client_sock < 0 )
-    {
-      perror("accept failed");
-    }
-    puts("Connection accepted");
-
-    int actualSize=0;
-    while(1) 
-    {
-	read_size = recv(client_sock, client_message, BUFF_SIZE, 0);
-	if(read_size>0)
-	{
-       	    //printf("-%c,-%c ",client_message[0], client_message[read_size]);
-  	    memcpy(recvBuff+actualSize, client_message, read_size*sizeof(char)); 
-            actualSize+=read_size;
-	}
-	if(recvBuff[actualSize-1]=='$'){
-
-       	    //printf("No more data -%c,-%c ",client_message[0], client_message[read_size-1]);
-
-	    //Call method to process reveived data and add it to queue
-	    processData(recvBuff,actualSize, dataqueue_p);	
-
-	    //send mesage back to client
-	    write(client_sock, "ok", strlen("ok"));    
-    	
-	    //Re initialize recv buffer and variables
-	    actualSize=0;
-            memset(recvBuff,0, sizeof(recvBuff));
-	
-	}
-    	else if( read_size == -1)
-    	{ 
-   	    perror("recv failed");
+    
+   
+    while(1){
+	printf("ready\n");
+	//Accept connection from an incoming client
+    	client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
+    	if ( client_sock < 0 )
+    	{
+      	    perror("accept failed");
     	}
+    	puts("Connection accepted");
+
+    	int actualSize=0;
+	//read_size=0;
+    	
+        while(1){
+	    read_size = recv(client_sock, client_message, BUFF_SIZE, 0);
+	    if(read_size>0)
+	    {
+       	    	//printf("-%c,-%c ",client_message[0], client_message[read_size]);
+  	    	memcpy(recvBuff+actualSize, client_message, read_size*sizeof(char)); 
+            	actualSize+=read_size;
+	    }
+	    if(recvBuff[actualSize-1]=='$'){
+
+       	    	//printf("No more data -%c,-%c ",client_message[0], client_message[read_size-1]);
+
+	    	//Call method to process reveived data and add it to queue
+	    	processData(recvBuff,actualSize, dataqueue_p);	
+
+		printf("write ok\n");
+	    	//send mesage back to client
+	    	write(client_sock, "ok", strlen("ok"));    
+	
+	    	//Re initialize recv buffer and variables
+	    	actualSize=0;
+            	memset(recvBuff,0, sizeof(recvBuff));
+	
+        	close(client_sock); 
+		break;
+	    }
+    	    else if( read_size == -1)
+    	    { 
+		printf("read size -1\n");
+   	    	perror("recv failed");
+        	close(client_sock); 
+		break;
+    	    }
+         }	
+	printf("restarting server socket...\n");
+    	close(client_sock); 
     }
-    close(client_sock); 
     free(dataqueue_p);
 }
 
@@ -419,7 +431,7 @@ void *task_send_MPI(void *arg){
     char inmsg='x';
     int position=0;
     int test[2][2]; 
-    int **test2;
+    //int **test2;
     int ss;
     float response;
 
@@ -523,6 +535,7 @@ void *task_send_MPI(void *arg){
 	     resp->analysis = pulledData->analysis;
 	     memcpy(resp->id, &(pulledData->id), sizeof(resp->id));		
    	     dataqueue_add(response_queue, resp);
+
 
              //freeDoublePointer(test2,6); 
 	     //free(test2);
