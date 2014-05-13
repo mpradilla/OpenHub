@@ -14,12 +14,12 @@ INCLUDES = -Iinclude
 # * Compile all programm    *
 # ***************************
 all: openhub_daemon
-	$(CC) $(CFLAGS) -o bin/openhub_daemon lib/openhub_daemon.o lib/thpool.o lib/queue.o lib/propagation_cost.o
+	$(CC) $(CFLAGS) -o bin/openhub_daemon lib/openhub_daemon.o lib/thpool.o lib/queue.o lib/clustering_cost.o lib/propagation_cost.o
 
 # ***************************
 # * Compile openhub daemon     *
 # ***************************
-openhub_daemon: thpool queue propagation
+openhub_daemon: thpool queue clustering propagation
 	$(CC) $(CFLAGS) -c src/openhub_daemon.c -o lib/openhub_daemon.o $(INCLUDES)
 	
 # ***************************
@@ -27,6 +27,12 @@ openhub_daemon: thpool queue propagation
 # ***************************
 propagation: 
 	$(CC) $(CFLAGS) -c src/propagation_cost.c -o lib/propagation_cost.o $(INCLUDES)
+	
+# ***************************
+# * Compile the clustering cost algorithm  *
+# ***************************
+clustering: 
+	$(CC) $(CFLAGS) -c src/clustering_cost.c -o lib/clustering_cost.o $(INCLUDES)
 	
 # ***************************
 # * Compile queue  *
