@@ -5,7 +5,7 @@
 #include <time.h>
 #include <math.h>
 #include "../include/clustering_cost.h"
-
+#include <assert.h>
 
 
 #define ALPHA 20
@@ -74,7 +74,7 @@ float calculate_clustering_cost(int **InputDsm, int size)
     int coordsProjectedSize=0;
   
  
-    //GET VERTICAL BUSES 
+    //STEP 1. GET VERTICAL BUSES 
     //calculateVerticalBuses( dsm, &size, ALPHA, &buses, &busesSize, &coordsX, &coordsY, &coordsSize, &coordsProjected, &coordsProjectedSize);	
     int colCount;
     float x,y,z,w;
@@ -131,14 +131,149 @@ float calculate_clustering_cost(int **InputDsm, int size)
 	}
     }
 
-
-
    printf("num buses: %i\n", busesSize); 
    //printf("bus 0: %i \n", buses[0]);  
    printArray(buses,busesSize);
    printArray(coordsX,coordsSize);
    printArray(coordsY,coordsSize);
    printArray(coordsProjected,coordsProjectedSize);
+
+   //STEP 3. FIND CLUSTERS FROM DEPENDENCIES
+	
+   int numClusters = 3;
+
+   if(numClusters>coordsProjectedSize){
+	return -1;
+   }
+   float **obj;
+   obj = malloc(coordsProjectedSize*sizeof(float*));
+   int rr;
+   for(rr=0;rr<coordsProjectedSize;rr++){
+       obj[rr]= malloc(sizeof(float));
+       obj[rr][0]=coordsProjected[rr]; 
+   }
+
+   int *membership;
+   membership = (int*)malloc(coordsProjectedSize*sizeof(int));
+   float **clusters;
+   clusters =  seq_kmeans(obj, 1 ,coordsProjectedSize, numClusters, 0.001 , membership);
+
+   /*
+
+   //STEP 4. SORT ASCENDING THE CENTROIDS
+   int *sortedCent;
+   int sortSize=0;
+   sortedCent = malloc(numClusters*sizeof(int));   
+   int ult =-1;
+   for(i=0;i<numClusters;i++){
+	if(ult!=-1){
+	    for(j=0;j<sortSize;j++){
+		if(clusters[i][0]<sortedCent[j]){
+		    sortedCent[j]=clusters[i][0];
+		    sortSize+=1;
+		    ult= i;
+                    break;
+		}
+	    }
+	    if(ult!=i)
+	    {
+		sortedCent[sortSize]=clusters[i][0];
+		sortSize+=1;
+	    }
+	}
+ 	else{
+	    sortedCent[sortSize]=clusters[i][0];
+	    sortSize+=1;
+	}
+   } 
+  
+   */
+  
+
+   //Asign X,Y dependency coordinates to each identify cluster
+   
+   int **cluster;
+   int *clusterSize;
+   cluster = (int**)malloc(numClusters*sizeof(int*));
+   clusterSize = (int*)malloc(numClusters*sizeof(int));
+   for(row=0;row<numClusters;row++)
+   {
+       cluster[row]=(int*)malloc(sizeof(int));
+       clusterSize[row]=0;
+   }
+   
+
+   for(i=0;i<coordsSize;i++)
+   {
+       for(j=0;j<coordsProjectedSize;j++)
+       {
+           if(coordsY[i]==coordsProjected[j])
+	   {
+	        cluster[membership[j]]=realloc(cluster[membership[j]], sizeof(int)*(clusterSize[membership[j]]+1));
+	 	cluster[membership[j]][clusterSize[membership[j]]]=i;
+ 		clusterSize[membership[j]]+=1;	
+           }
+       }       
+   }
+   
+ /* 
+   printf("cluster %i with x:%i\n",0, cluster[0][0]);
+   printf("cluster %i with x:%i\n",1, cluster[1][1]);
+   printf("cluster %i with x:%i\n",2, cluster[2][0]);
+*/	   
+
+
+  //CLUSTERING COST
+  float cost =0;
+  float clusterCost;
+  float depCost;
+  for(i=0;i<numClusters;i++)
+  {  clusterCost=0; 
+
+      for(j=0;j<clusterSize[i];j++)
+      {
+          depCost=0;
+	  if(isInList(cluster[i][j],buses,busesSize)==1)
+	     depCost =1;
+ 	  else
+	  {
+	      //cluster[i][j] show the j depdendency, based on the coordsX,Y numeration from cluster number i
+	      if(isInList(cluster[i][j],cluster[i],clusterSize[i]==1))
+	          depCost = pow(clusterSize[i],LAMD);
+  	      else
+	          depCost = pow(size, LAMD);
+	  }
+      clusterCost+=depCost;
+      }
+      cost+=clusterCost;
+  }
+
+  printf("CLUTERING COST: %f\n", cost);
+
+
+ 
+    for(row=0;row<coordsProjectedSize;row++)
+    {
+	free(obj[row]);
+	printf("Memeber %i\n", membership[row]);
+    }
+    free(obj);
+
+    for(row=0;row<numClusters;row++)
+    {
+	printf("clusters %i with x:%f\n",row, clusters[row][0]);
+//	printf("orde clusters %i with x:%f\n",row, sortedCent[row]);
+	free(cluster[row]);
+    }
+    free(membership);
+ //   free(sortedCent);
+
+    //free(cluster[0]);
+    free(cluster);
+    free(clusterSize);
+    free(clusters[0]);
+    free(clusters);
+
 
     printf("Clustering cost calculated. free memory...");
     free(buses);
