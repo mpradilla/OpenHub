@@ -8,8 +8,12 @@
 #include <assert.h>
 
 
-#define ALPHA 20
+#define ALPHA 30
 #define LAMD 2 
+#define BOW 10
+
+//THREASHOLD FOR SSE CHANGE
+#define THH 0.20 
 
 
 void printDSM(int**dsm,int size);
@@ -27,12 +31,13 @@ void add_element(float * array, int sizeOfArray,float num, int indexToAdd);
 void onerealloc(int **oldPtr, int actualSize);
 int** testDSM();
 int** testPerfectDSM();
-int** testGoodDSM();
-int** testRegularDSM();
+int** testGoodDSM(int **test);
+int** testRegularDSM(int **test);
 int** testBadDSM(int **test);
 int isInList(int input, int* list, int size); 
 
 void printArray(int *arr, int size);
+void printArrayFloat(float *arr, int size);
 
 //Dinamic array for DSM vertical buses. Arrray with the matrix indexes
 int *buses;
@@ -80,13 +85,24 @@ float calculate_clustering_cost(int **InputDsm, int size)
     int *coordsProjectedX;
     coordsProjectedX = malloc(sizeof(int));
     int coordsProjectedSize=0;
-  
+ 
+ 
  
     //STEP 1. GET VERTICAL BUSES 
     //calculateVerticalBuses( dsm, &size, ALPHA, &buses, &busesSize, &coordsX, &coordsY, &coordsSize, &coordsProjected, &coordsProjectedSize);	
     int colCount;
     float x,y,z,w;
     
+
+
+   //Calibration with different alpha values
+   int al[7] = {40,35,30,25,20,15,10};
+   double delta = (size*15)/100;
+   int aa,exit=0,last=0,lastt=0;
+   for(aa=0;aa<7;aa++)
+   {
+    int alpha = al[aa];
+
     for(i=0; i<size; i++){
 	colCount=0;
 	for(j=0;j<size;j++){
@@ -113,15 +129,38 @@ float calculate_clustering_cost(int **InputDsm, int size)
 	    z = (float)size;
 	    w = (float) 100/z;
 	    x = (float)w*y;
-	    if(x>ALPHA){
-   		printf("busesSize:%i\n",busesSize);		
+	    if(x>alpha){
+   		//printf("busesSize:%i\n",busesSize);		
 		buses = realloc(buses,sizeof(int)*(busesSize+1));
 		buses[busesSize]=i;
 		busesSize+=1;
 	    }
 	    y,z,w,x=0; 	
 	}
-    }  
+    } 
+     printf("num buses: %i with alpha :%i last:%i\n", busesSize,alpha,last); 
+     if(exit==1)
+	break;
+
+     if((busesSize)>=delta)
+     {
+	if(aa<=1)
+	    break; 
+	aa-=2;	
+	exit=1;
+     }
+     else
+	last=busesSize;
+
+     //RESTART ALL VALUES
+     coordsX=realloc(coordsX,sizeof(int));
+     coordsY=realloc(coordsY,sizeof(int));
+     coordsSize=0;
+     coordsProjected = realloc(coordsProjected, sizeof(int));		
+     coordsProjectedX = realloc(coordsProjectedX, sizeof(int));		
+     coordsProjectedSize=0;		
+
+    }
 
     printf("cooordsSize: %i \n", coordsSize);  
 
@@ -144,20 +183,40 @@ float calculate_clustering_cost(int **InputDsm, int size)
    printf("num buses: %i\n", busesSize); 
    printf("num coords: %i\n", coordsSize); 
    //printf("bus 0: %i \n", buses[0]);  
-   printArray(buses,busesSize);
-   printArray(coordsX,coordsSize);
-   printArray(coordsY,coordsSize);
-   printArray(coordsProjected,coordsProjectedSize);
-   printArray(coordsProjectedX,coordsProjectedSize);
+   //printArray(buses,busesSize);
+   //printArray(coordsX,coordsSize);
+   //printArray(coordsY,coordsSize);
+   //printArray(coordsProjected,coordsProjectedSize);
+   //printArray(coordsProjectedX,coordsProjectedSize);
 
    //STEP 3. FIND CLUSTERS FROM DEPENDENCIES
-	
-   int numClusters = 3;
+   
+   int **clusterBEST;
+   int *clusterSizeBEST;
+   int greater=0;
+   clusterSizeBEST = (int*)malloc(sizeof(int));
+   clusterBEST =(int**)malloc(sizeof(int*));
+   int sseBEST=-1;
+   int numClustersBEST=0; 
+
+   int numClusters;
+   float **obj;
+   float **clusters;
+   int **cluster;
+   int *clusterSize;
+   int *membership;
+   float *sortedCent;
+
+   int ks[8]={2,3,4,6,8,12,16,20};
+   int k;	
+   for(k=0;k<8;k++)
+   { 
+
+   numClusters = ks[k];
 
    if(numClusters>coordsProjectedSize){
 	return -1;
    }
-   float **obj;
    obj = malloc(coordsProjectedSize*sizeof(float*));
    int rr;
    for(rr=0;rr<coordsProjectedSize;rr++){
@@ -165,33 +224,10 @@ float calculate_clustering_cost(int **InputDsm, int size)
        obj[rr][0]=coordsProjected[rr]; 
    }
 
-   int *membership;
    membership = (int*)malloc(coordsProjectedSize*sizeof(int));
-   float **clusters;
    clusters =  seq_kmeans(obj, 1 ,coordsProjectedSize, numClusters, 0.001 , membership);
-/*
-   //Get intersection between clusters
-   int **intersections;
-   intersections = (int**)malloc(numClusters*sizeof(int*));
-   for(row=0;row<numClusters;row++)
-   {
-	intersections[row]=(int*)malloc(2*sizeof(int));
-   }
-
-   //for first cluster, always go form 0
-   intersections[0][0]=0;
-   for(i=1;i<numClusters;i++)
-   {
-	mid = ((clusters[i][0]-clusters[i-1][0])/2.0)+ clusters[i-1][0];
-	intersections[i-1][1]=mid;
-	intersections[i][0]=mid;
-   }
-   intersection[numClusters-1][1]=size;
-  */ 
-
-   //SORT ASCENDING THE CENTROIDS
+   
    //STEP 4. SORT ASCENDING THE CENTROIDS
-   float *sortedCent;
    int sortSize=0;
    sortedCent = malloc(numClusters*sizeof(float));
    for(i=0;i<numClusters;i++)
@@ -225,17 +261,17 @@ float calculate_clustering_cost(int **InputDsm, int size)
    } 
 
   
+
+   /*   
    printf("centroid 0 %f\n", clusters[0][0]);
    printf("centroid 1 %f\n", clusters[1][0]);
    printf("centroid 2 %f\n", clusters[2][0]);
    printf("sort centroid 0 %f\n", sortedCent[0]);
    printf("sort centroid 1 %f\n", sortedCent[1]);
    printf("sort centroid 2 %f\n", sortedCent[2]);
- 
-   //Asign X,Y dependency coordinates to each identify cluster
-   
-   int **cluster;
-   int *clusterSize;
+   */
+
+   //Asign X,Y dependency coordinates to each identify cluster   
    cluster = (int**)malloc((numClusters+1)*sizeof(int*));
    clusterSize = (int*)malloc((numClusters+1)*sizeof(int));
    for(row=0;row<numClusters+1;row++)
@@ -254,17 +290,18 @@ float calculate_clustering_cost(int **InputDsm, int size)
 	indx = getIndexCluster(sortedCent, numClusters , cc);
 	float lastCentroid=0,centroid=0,nextCentroid=0;
 
+	//printArrayFloat(sortedCent,numClusters);
 	centroid=cc;
-	if(indx!=0)
+	if(indx!=0 && indx!=-1)
 	    lastCentroid = sortedCent[indx-1];
 	else
             lastCentroid=0.0;
- 	if(indx!=numClusters-1)
+ 	if(indx!=numClusters-1 && indx!=-1)
 	    nextCentroid = sortedCent[indx+1];
 	else
             nextCentroid=size;
 	    
-	printf("lastC:%f  cent:%f next:%f\n",lastCentroid,centroid,nextCentroid);	
+	//printf("lastC:%f  cent:%f next:%f\n",lastCentroid,centroid,nextCentroid);	
 
 	if(lastCentroid>centroid)
 	   printf("********LIST NOT ORDENED!!!");
@@ -281,7 +318,7 @@ float calculate_clustering_cost(int **InputDsm, int size)
 
 	int y = coordsProjected[i];
 	int x = coordsProjectedX[i];
-	printf("y:%i x:%i  limitA:%f limitB:%f\n",y, x,limitA, limitB);
+	//printf("y:%i x:%i  limitA:%f limitB:%f\n",y, x,limitA, limitB);
  	
 	//printf("limA:%d limB:%d coordY:%i coordX:%i\n", limitA,limitB, coordsProjected[i],coordsProjectedX[i]);	
 	if(y>=limitA && y<=limitB && x>=limitA && x<=limitB)
@@ -293,7 +330,7 @@ float calculate_clustering_cost(int **InputDsm, int size)
         else
 	{
 	    //Dependency has no cluster, added to las cluster list for extra penatilization
-	    printf("no in cluster really\n");
+	    //printf("no in cluster really\n");
 	    cluster[numClusters]=realloc(cluster[numClusters], sizeof(int)*(clusterSize[numClusters]+1));
 	    cluster[numClusters][clusterSize[numClusters]]=coordsProjected[i];
  	    clusterSize[numClusters]+=1;
@@ -304,91 +341,78 @@ float calculate_clustering_cost(int **InputDsm, int size)
 	int dis = abs(coordsProjected[i]-yCl);	
         sse+=pow(dis,2);
 
-	printf("cluster num:%i with size:%i - dep in y=%i centroid in:%i dis:%i sse:%i\n", membership[i],clusterSize[membership[i]], coordsProjected[i],yCl,dis,sse );
+	//printf("cluster num:%i with size:%i - dep in y=%i centroid in:%i dis:%i sse:%i\n", membership[i],clusterSize[membership[i]], coordsProjected[i],yCl,dis,sse );
    }		
-   
+   int skip =0;
+   //LOCK FOR THREASHOLD ON CHANGE LESS THAN 20%
+   if(sseBEST!=-1 && sseBEST*THH>sseBEST-sse)
+   {
+    //break;
+    skip=1;
+    }  
 
-
-   /*
-
-   //STEP 4. SORT ASCENDING THE CENTROIDS
-   int *sortedCent;
-   int sortSize=0;
-   sortedCent = malloc(numClusters*sizeof(int));   
-   int ult =-1;
-   for(i=0;i<numClusters;i++){
-	if(ult!=-1){
-	    for(j=0;j<sortSize;j++){
-		if(clusters[i][0]<sortedCent[j]){
-		    sortedCent[j]=clusters[i][0];
-		    sortSize+=1;
-		    ult= i;
-                    break;
-		}
-	    }
-	    if(ult!=i)
-	    {
-		sortedCent[sortSize]=clusters[i][0];
-		sortSize+=1;
-	    }
-	}
- 	else{
-	    sortedCent[sortSize]=clusters[i][0];
-	    sortSize+=1;
-	}
-   } 
   
-   */
- 
-   /*
-   for(i=0;i<coordsSize;i++)
-   {
-       for(j=0;j<coordsProjectedSize;j++)
-       {
-           if(coordsY[i]==coordsProjected[j])
-	   {
-	        cluster[membership[j]]=realloc(cluster[membership[j]], sizeof(int)*(clusterSize[membership[j]]+1));
-	 	cluster[membership[j]][clusterSize[membership[j]]]=i;
- 		clusterSize[membership[j]]+=1;
+   printf("SSE for %i clusters : %i \n", numClusters, sse); 
+   if((sseBEST>sse || sseBEST==-1) && skip==0){
 
-		printf("cluster num:%i with size:%i - dep in y=%i\n", membership[j],clusterSize[membership[j]], i );
-   		
-		//Evaluate number of clusters by SSE (sum of squared error)
-		//int  cl = membership[j];
-		//int yCl = clusters[cl][0];
-		//int dis = abs(coordsY[j]-yCl);	
-			
-           }
- 	   else{
-		printf("no entor\n");
+	//free last cluster info first
+	if(sseBEST!=-1){
+	    int row;
+	    for(row=0;row<greater+1;row++)
+	    {
+	      free(clusterBEST[row]);
+	    }
+        }
+	numClustersBEST = numClusters;
+	clusterSizeBEST = (int*)realloc(clusterSizeBEST,(numClusters+1)*sizeof(int));
+	clusterBEST =(int**)realloc(clusterBEST,(numClusters+1)*sizeof(int*));
+	int r,q;
+	for(r=0;r<numClusters+1;r++)
+	{
+	    int ct;
+	    if(r!=numClusters)
+	       ct = membership[r];
+	    else
+	       ct = numClusters;
+
+	    int g = clusterSize[r];
+	    greater = numClusters;
+	    //printf("size cluster r:%i is :%i\n",r,g);
+	    clusterBEST[r]= malloc(g*sizeof(int));
+	    clusterSizeBEST[r]=g;
+	    for(q=0;q<g;q++)
+	    {
+		clusterBEST[r][q] = cluster[r][q];
+	    }
 	}
-       }       
+        sseBEST=sse;
    }
 
+    for(row=0;row<coordsProjectedSize;row++)
+    {
+	free(obj[row]);
+    }
+    free(obj);
+    
+ 
+    free(clusters[0]);
+    free(clusters);
+    free(membership);
+    for(row=0;row<numClusters+1;row++)
+    {
+	free(cluster[row]);
+    }
+    free(cluster);
+    free(clusterSize);
+    free(sortedCent);
 
-   int sse=0;
-   //OJO. en coorsSize estan todas las coordenadas, pero en membership solo las que nos son buses!! 
-   //cluster al que pertenece
-   for(i=0;i<numClusters;i++)
-   {
-       for(j=0;j<clusterSize[i];j++)
-       {
-           int co =cluster[i][j];
-           int cl = cluster[i][0];
-	   int dis = abs(co-cl);
-           sse+=pow(dis,2);
-	   printf("coord num:%i with y=%i from cluster %i with centroid %i and dis %i. Total %i\n", j, co, i , cl, dis, sse);
-	   	 
-       }
-   }
-*/
+    if(skip==1)
+	break;
 
-   
- /* 
-   printf("cluster %i with x:%i\n",0, cluster[0][0]);
-   printf("cluster %i with x:%i\n",1, cluster[1][1]);
-   printf("cluster %i with x:%i\n",2, cluster[2][0]);
-*/	   
+  }//End loop to find best k for kmenas with sse
+
+
+   printf("BEST SSE for %i clusters : %i\n", numClustersBEST, sseBEST); 
 
 
   //CLUSTERING COST
@@ -396,19 +420,19 @@ float calculate_clustering_cost(int **InputDsm, int size)
   float cost =0;
   float clusterCost;
   float depCost;
-  for(i=0;i<numClusters+1;i++)
+  for(i=0;i<numClustersBEST+1;i++)
   {  clusterCost=0; 
 
-      for(j=0;j<clusterSize[i];j++)
+      for(j=0;j<clusterSizeBEST[i];j++)
       {
           depCost=0;
-	  if(isInList(cluster[i][j],buses,busesSize)==1)
+	  if(isInList(clusterBEST[i][j],buses,busesSize)==1)
 	     depCost =1;
  	  else
 	  {
 	      //cluster[i][j] show the j depdendency, based on the coordsX,Y numeration from cluster number i
-	      if((isInList(cluster[i][j],cluster[i],clusterSize[i]==1)) && i!=(numClusters))
-	          depCost = pow(clusterSize[i],LAMD);
+	      if((isInList(clusterBEST[i][j],clusterBEST[i],clusterSizeBEST[i]==1)) && i!=(numClustersBEST+1))
+	          depCost = pow(clusterSizeBEST[i],LAMD);
   	      else
 	          depCost = pow(size, LAMD);
 	  }
@@ -421,36 +445,22 @@ float calculate_clustering_cost(int **InputDsm, int size)
   printf("CLUTERING COST: %f\n", cost);
   ans = cost;
  
-    for(row=0;row<coordsProjectedSize;row++)
+    //printf("numClusters best free :%i\n",numClustersBEST);
+    for(row=0;row<numClustersBEST+1;row++)
     {
-	free(obj[row]);
-	//printf("Memeber %i\n", membership[row]);
+	free(clusterBEST[row]);
     }
-    free(obj);
-
-    for(row=0;row<numClusters+1;row++)
-    {
-	//printf("clusters %i with x:%f\n",row, clusters[row][0]);
-//	printf("orde clusters %i with x:%f\n",row, sortedCent[row]);
-	free(cluster[row]);
-    }
-    free(membership);
-    free(sortedCent);
-
-    //free(cluster[0]);
-    free(cluster);
-    free(clusterSize);
-    free(clusters[0]);
-    free(clusters);
+    free(clusterBEST);
+    free(clusterSizeBEST);
 
 
     printf("Clustering cost calculated. free memory...");
     free(buses);
+
     free(coordsX);
     free(coordsY);
     free(coordsProjected);
     free(coordsProjectedX);
-
     for(row=0;row<size;row++)
     {
 	free(dsm[row]);
@@ -638,6 +648,16 @@ void printArray(int *arr, int size)
     }
     printf("\n");
 }
+void printArrayFloat(float *arr, int size)
+{
+    int i;
+    for(i=0;i<size;i++)
+    {
+	    printf("%4.f,", arr[i]);
+    }
+    printf("\n");
+}
+
 
 void printDSM22(int **dsm, int size)
 {
@@ -664,23 +684,23 @@ int isInList(int input, int *list, int size)
     return 0;	
 }
 
-main()
+main2()
 {
     printf("Clustering Cost\n");
     int **dsm;
     float a; 
-/*
-    dsm = testRegularDSM();
-    a = calculate_clustering_cost(dsm, 6);
-    printf("C regular Cost: %f\n", a);
     
-   dsm = testGoodDSM();
-    a = calculate_clustering_cost(dsm, 6);
-    printf("C Good Cost: %f\n", a);
-    */
     dsm = testPerfectDSM();
     a = calculate_clustering_cost(dsm, 20);
     printf("C Perfect Cost: %f\n", a);
+
+    dsm = testGoodDSM(dsm);
+    a = calculate_clustering_cost(dsm, 20);
+    printf("C Good Cost: %f\n", a);
+    
+    dsm = testRegularDSM(dsm);
+    a = calculate_clustering_cost(dsm, 20);
+    printf("C regular Cost: %f\n", a);
     
     dsm = testBadDSM(dsm);
     a = calculate_clustering_cost(dsm, 20);
@@ -789,86 +809,72 @@ int testa[20][20]={1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
   return test;
 }
-//USE FROM
-/*
-int** testGoodDSM(int ** test)
+
+int** testGoodDSM(int **test)
 {
-   
-   int **test;
-   test = malloc(sizeof(int*)*20);
-   int i;
-   for(i=0;20;i++)
-   {
- 	test[i]=(int*)malloc(sizeof(int)*20);
+   int i,j;
+   int tes[20][20]={{1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+   	     {0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+   	     {0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+   	     {0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+   	     {0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+   	     {0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+   	     {0,0,1,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0},
+             {0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0},
+   	     {1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0},
+   	     {0,0,1,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0},
+   	     {0,1,1,1,1,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0},
+   	     {0,0,0,0,0,0,0,1,0,1,0,1,0,0,0,0,0,0,0,0},
+   	     {0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0},
+             {0,0,0,0,0,0,0,0,0,1,0,0,1,1,0,0,0,0,0,0},
+   	     {0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0},
+   	     {0,0,0,0,0,1,0,1,0,0,0,0,1,0,1,1,0,0,0,0},
+   	     {0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0},
+   	     {0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0},
+   	     {0,0,0,0,0,0,0,1,1,0,1,1,1,0,0,0,0,0,1,0},
+  	     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}};
+   for(i=0;i<20;i++){
+	for(j=0;j<20;j++)
+	{
+ 	    test[i][j]=tes[i][j];
+	}
    } 
-   
-
-   test[0] =  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-   test[1] =  {0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-   test[2] =  {0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-   test[3] =  {0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-   test[4] =  {0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-   test[5] =  {0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-   test[6] =  {0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0};
-   test[7] =  {0,0,0,0,0,0,1,1,0,1,0,0,0,0,0,0,0,0,0,0};
-   test[8] =  {0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0};
-   test[9] =  {0,0,0,1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0};
-   test[10] = {0,0,0,1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0};
-   test[11] = {0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0};
-   test[12] = {0,0,0,1,0,0,1,0,0,0,1,0,1,0,0,0,0,0,0,0};
-   test[13] = {0,0,0,1,0,0,1,0,0,0,0,1,0,1,0,0,0,0,0,0};
-   test[14] = {0,0,0,1,0,0,1,0,0,0,0,1,0,0,1,0,1,0,0,0};
-   test[15] = {0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,1,0,0,0,0};
-   test[16] = {0,0,0,1,0,0,1,0,0,0,1,0,1,1,1,0,1,0,0,0};
-   test[17] = {0,0,0,1,0,0,0,0,0,1,0,0,0,0,1,1,0,1,0,0};
-   test[18] = {0,0,0,1,0,0,1,0,0,1,0,0,0,0,1,1,0,0,1,0};
-   test[19] = {0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,1};
    return test;
-
 }
-int** testRegularDSM()
+int** testRegularDSM(int **test)
 {
-   int **test;
-   test = malloc(sizeof(int*)*20);
-   int i;
-   for(i=0;20;i++)
-   {
- 	test[i]=(int*)malloc(sizeof(int)*20);
+   int i,j;
+   int tes[20][20]={{1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+   	     {0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+   	     {0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+   	     {0,0,1,1,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0},
+   	     {0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0},
+   	     {0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+   	     {0,0,1,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0},
+             {0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,0,0},
+   	     {0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0},
+   	     {0,0,0,0,0,0,0,1,0,1,0,0,0,1,0,0,0,0,0,0},
+   	     {0,1,1,1,1,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0},
+   	     {0,0,0,0,0,0,0,1,0,1,0,1,0,0,1,0,0,0,0,0},
+   	     {0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0},
+             {0,0,0,0,0,0,0,0,0,1,0,0,1,1,0,0,0,0,0,0},
+   	     {0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0},
+   	     {0,0,0,0,0,1,0,1,0,0,0,0,1,0,1,1,0,0,0,0},
+   	     {0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0},
+   	     {0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0},
+   	     {0,0,0,0,0,0,0,1,1,0,1,1,1,0,0,0,0,0,1,0},
+  	     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}};
+   for(i=0;i<20;i++){
+	for(j=0;j<20;j++)
+	{
+ 	    test[i][j]=tes[i][j];
+	}
    } 
-
-   test[0] =  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-   test[1] =  {0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-   test[2] =  {0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-   test[3] =  {0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-   test[4] =  {0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-   test[5] =  {0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-   test[6] =  {0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0};
-   test[7] =  {0,1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0};
-   test[8] =  {0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0};
-   test[9] =  {0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0};
-   test[10] = {0,0,0,0,0,0,1,1,1,0,1,0,1,1,0,0,0,0,0,0};
-   test[11] = {0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0};
-   test[12] = {1,0,0,0,0,0,0,0,0,0,1,0,1,1,0,0,0,1,0,0};
-   test[13] = {0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0};
-   test[14] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0};
-   test[15] = {0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,1,1,0,1,0};
-   test[16] = {0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,1,1,0,0,0};
-   test[17] = {0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0};
-   test[18] = {0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0};
-   test[19] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1};
    return test;
-
 }
-*/
 int** testBadDSM(int **test)
 {
    int i,j;
-   /*int **test;
-   test = malloc(sizeof(int*)*20);
-   for(i=0;20;i++)
-   {
- 	test[i]=(int*)malloc(sizeof(int)*20);
-   } */
    int tes[20][20]={{1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
    	     {0,1,1,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0},
    	     {0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -896,7 +902,6 @@ int** testBadDSM(int **test)
 	}
    } 
    return test;
-
 }
 //USE FROM
 
