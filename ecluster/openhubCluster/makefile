@@ -2,7 +2,7 @@
 CC = mpicc
 
 # define any compile-time flags
-CFLAGS = -Wall  -g 
+CFLAGS = -Wall  -g -lm
 CUDPFLAGS = -g 
 #-Wextra -pedantic
 

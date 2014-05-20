@@ -32,7 +32,9 @@ float calculate_propagation_cost(int **InputDsm, int size)
 	for(q=0;q<size;q++){
 	     //memcpy(dsm[l][q], InputDsm[l][q], sizeof(int));
 	    dsm[l][q]=InputDsm[l][q];
+	    printf("%i",dsm[l][q]);
 	}
+	printf("\n");
    }
 
    //dsm = InputDsm;

@@ -47,12 +47,6 @@ float calculate_clustering_cost(int **InputDsm, int size)
 {
     float ans = -1.0;
 
-    int a =0;
-    printf("a:%i\n",a);
-    *(&a)=1;
-    printf("a:%i\n",a);
-
-
     int **dsm;
     dsm = (int**) malloc(sizeof(int*)*size);
     int row;
@@ -67,7 +61,9 @@ float calculate_clustering_cost(int **InputDsm, int size)
     for(i=0;i<size;i++){
 	for(j=0;j<size;j++){
 	    dsm[i][j]=InputDsm[i][j];
+	    //printf("%i,",dsm[i][j]);
 	}
+	//printf("\n");
     }
 
 
@@ -97,31 +93,33 @@ float calculate_clustering_cost(int **InputDsm, int size)
 
    //Calibration with different alpha values
    int al[7] = {40,35,30,25,20,15,10};
+   //int al[7] = {10,15,20,25,30,35,40};
    double delta = (size*15)/100;
    int aa,exit=0,last=0,lastt=0;
    for(aa=0;aa<7;aa++)
    {
-    int alpha = al[aa];
-
-    for(i=0; i<size; i++){
-	colCount=0;
-	for(j=0;j<size;j++){
+     int alpha = al[aa];
+     for(i=0; i<size; i++)
+     {
+	if(aa==0)
+	{
+	    colCount=0;
+	    for(j=0;j<size;j++){
 		
-	    //printf("%i\n",dsm[i][j]);	
-	    if(dsm[i][j] != 0){
-		colCount +=1;
-		//printf("%i.%i\n", i,j);
-                coordsX = realloc(coordsX,sizeof(int)*(coordsSize+1));
-                coordsY = realloc(coordsY,sizeof(int)*(coordsSize+1));
-	 	coordsX[coordsSize]=i;
-	 	coordsY[coordsSize]=j;
-		coordsSize+=1;
+	        if(dsm[i][j] != 0){
+		    colCount +=1;
+                    coordsX = realloc(coordsX,sizeof(int)*(coordsSize+1));
+                    coordsY = realloc(coordsY,sizeof(int)*(coordsSize+1));
+	 	    coordsX[coordsSize]=i;
+	 	    coordsY[coordsSize]=j;
+		    coordsSize+=1;
 
-  		coordsProjected = realloc(coordsProjected, sizeof(int)*(coordsProjectedSize+1));
-		coordsProjected[coordsProjectedSize] = i;
-  		coordsProjectedX = realloc(coordsProjectedX, sizeof(int)*(coordsProjectedSize+1));
-		coordsProjectedX[coordsProjectedSize] = j;
-		coordsProjectedSize+=1;
+  		    coordsProjected = realloc(coordsProjected, sizeof(int)*(coordsProjectedSize+1));
+		    coordsProjected[coordsProjectedSize] = i;
+  		    coordsProjectedX = realloc(coordsProjectedX, sizeof(int)*(coordsProjectedSize+1));
+		    coordsProjectedX[coordsProjectedSize] = j;
+		    coordsProjectedSize+=1;
+	         }
 	    }
 	}
 	if(colCount!=0){
@@ -139,31 +137,24 @@ float calculate_clustering_cost(int **InputDsm, int size)
 	}
     } 
      printf("num buses: %i with alpha :%i last:%i\n", busesSize,alpha,last); 
-     if(exit==1)
+     //last posbility - stay with this result from aa==7
+     if(exit==1 || aa==7)
 	break;
-
-     if((busesSize)>=delta)
+     else if((busesSize)>delta)
      {
-	if(aa<=1)
-	    break; 
-	aa-=2;	
-	exit=1;
+	//With biggest alpha we have already a significant amount of buses
+	if(aa==0)
+	    break; 	
+	 //Go back and recalculate last buses resulta based on alpha aa-1 
+	 aa-=2;	
+	 exit=1;
      }
      else
 	last=busesSize;
-
      //RESTART ALL VALUES
-     coordsX=realloc(coordsX,sizeof(int));
-     coordsY=realloc(coordsY,sizeof(int));
-     coordsSize=0;
-     coordsProjected = realloc(coordsProjected, sizeof(int));		
-     coordsProjectedX = realloc(coordsProjectedX, sizeof(int));		
-     coordsProjectedSize=0;		
-
-    }
-
-    printf("cooordsSize: %i \n", coordsSize);  
-
+     busesSize=0;
+     buses = realloc(buses,sizeof(int));		
+}
 
     //STEP 2. REMOVE DEPENDENCIES RELATED TO BUSES	
 
@@ -481,7 +472,7 @@ float calculate_clustering_cost(int **InputDsm, int size)
 void calculateVerticalBuses(int **dsm, int *size, int alpha, int **buses, int *busesSize, int **coordsX,int **coordsY, int *coordsSize, int **coordsProjected, int *coordsProjectedSize){
 
  
-    printf("dsm[1][0]:%i\n",dsm[1][0]);
+    //printf("dsm[1][0]:%i\n",dsm[1][0]);
 	
     //int *buses;
     //int busesSize=0;
@@ -556,8 +547,8 @@ void calculateVerticalBuses(int **dsm, int *size, int alpha, int **buses, int *b
     }  
 
     //Copy response to param to send it back
-    *buses = realloc(*buses,*busesSize*sizeof(int));
-    *buses=buses2;
+    //*buses = realloc(*buses,*busesSize*sizeof(int));
+    //*buses=buses2;
     //*coordsX = *cX;
     //*coordsY= *cY;
     //*coordsProjected=*csP;
@@ -684,7 +675,7 @@ int isInList(int input, int *list, int size)
     return 0;	
 }
 
-main2()
+main22()
 {
     printf("Clustering Cost\n");
     int **dsm;

@@ -23,6 +23,7 @@
 #include <math.h>
 #include "queue.h"
 #include "propagation_cost.h"
+#include "clustering_cost.h"
 #include "thpool.h"
 #include "openhub_daemon.h"
 
@@ -33,7 +34,11 @@ void * task_send_MPI(void *arg);
 
 void *analyze_data(void*arg);
 
+//Metrics
 float calculate_propagation_cost( int** dsm, int size);
+float calculate_clustering_cost( int** dsm, int size);
+
+
 int** initializeTestDsm();
 
 void freeDoublePointer(int **dsm, int size);
@@ -42,7 +47,8 @@ int comm_rank, comm_size, thread_level_provided;
 
 static const int BUFF_SIZE = 200000000;
 int ready=0;
-int hugeMatrix[5000][5000];
+//int hugeMatrix[5000][5000];
+int hugeArray[5000*5000];
 
 //#define PYTHON_SERVER 10.0.1.118
 #define IN_PORT  5001
@@ -205,21 +211,28 @@ int main(int argc, char **argv){
 		MPI_Status status;
 		//data_dsm *data_recv;
  		
-		int rc;
+		//int rc;
 		int outmsg;
 		int test[2][2];		
 		int number_amount;
 		char check;
+		int metric=-1;
 		while(1){
    		    printf("waiting job...\n");
 
 //		    MPI_Probe(0,0, MPI_COMM_WORLD, &status);
 //		    MPI_Get_count(&status, MPI_INT, &number_amount);			
 		    
+
+		    //REVEIVE METRIC ID
+		    MPI_Recv(&metric, 1, MPI_INT , 0, 1 , MPI_COMM_WORLD, MPI_STATUS_IGNORE);  
+		    printf("receive metric analysis job id %i\n", metric);
 		
 		    MPI_Recv(&outmsg, 1, MPI_INT , 0, 1 , MPI_COMM_WORLD, MPI_STATUS_IGNORE);  
 		    printf("receive dsm size %i\n", outmsg);
 		    
+		    //outmsg comes with the dsm width
+
 		    int **dsm;
 		    dsm = (int**)malloc((sizeof(int*))*outmsg);
 	            int y=0;
@@ -228,39 +241,75 @@ int main(int argc, char **argv){
       		       dsm[y]=(int*)malloc(sizeof(int)*outmsg);
 	            }
 
-//		    int dd[outmsg][outmsg];
-		    MPI_Recv(&(hugeMatrix[0][0]), outmsg*outmsg, MPI_INT, 0, 1, MPI_COMM_WORLD, &status); 
-			
+		    //int dd[4];
+		    MPI_Recv(&hugeArray[0], outmsg*outmsg, MPI_INT, 0, 1, MPI_COMM_WORLD, &status); 
+	/*	
+		    printf("10 %i\n",dd[0]);
+		    printf("11 %i\n",dd[1]);
+		    printf("12 %i\n",dd[2]);
+		    printf("13 %i\n",dd[3]);
+	*/
+		    int dim = outmsg;
+		    int r,g=0,u=0;
+		    for(r=0;r<dim*dim;r++)
+		    {
+			if(g==dim)
+			{
+			  g=0;
+			  u++;
+			}			
+			   
+			dsm[u][g]=hugeArray[r];
+			//printf("%i_",dsm[u][g]);
+			//if(g==dim-1)
+			   //printf("\n");
+			g++;
+		    }
+
 
 		    //COPY FROM 2D Array to double pointer structre
 		    //int (*dsm)[outmsg][outmsg];
 		    //dsm = &dd;
- 
+ 	/*
 		    int a,b;
 		    for(a=0;a<outmsg;a++){
 
 			for(b=0;b<outmsg;b++){
 				
 				dsm[a][b]=hugeMatrix[a][b];
+		//	        printf("%i",hugeMatrix[a][b]);
+			       
 				if(hugeMatrix[a][b]!=1 && hugeMatrix[a][b]!=0){
 					//memcpy(dsm[a][b],dd[a][b],sizeof(int));
 					printf("********************************  ");
 					printf("index: %i, %i, value:%i\n",a,b, dsm[a][b]);	
 					}
-				//printf("%i",dsm[a][b]);
+			//        printf("%i",dsm[a][b]);
 				}
 			    //printf("\n");
 			}
-
+	*/
 		
 		    //DO ANALYSIS over received data
 		   // int **test;
-   		   // test = initializeTestDsm();
+   		   //test = initializeTestDsm();
+		   float ans=-1;	
+			
+		   //metric=1 clustering cost
+		   if(metric==0){
+		       ans = calculate_propagation_cost(dsm,outmsg);
+		       printf("propagation Cost: %.4f\n", ans);
+		   }
+	           //metric=1 clustering cost
+		   else if(metric==1){
+		       ans = calculate_clustering_cost(dsm,outmsg);
+		       printf("clustering Cost: %.4f\n", ans);
+		   }
+		   else
+		    printf("NO METRIC ID RECIEVED!!! No analysis done\n");
 
-		    float ans = calculate_propagation_cost(dsm,outmsg);
-		    printf("propagation Cost: %.4f\n", ans);
-		   // freeDoublePointer(test,6);		    
 		    freeDoublePointer(dsm, outmsg);	
+		    //freeDoublePointer(test, 6);	
 
 //		    free(data_recv);
  		    //Send Message to indicate task finished and to receive new task
@@ -432,7 +481,7 @@ void *task_send_MPI(void *arg){
     int position=0;
     int test[2][2]; 
     //int **test2;
-    int ss;
+    int ss,metric=-1;
     float response;
 
     parameters_item *params = ((parameters_item *)arg);
@@ -451,6 +500,9 @@ void *task_send_MPI(void *arg){
    
    	     printf("DATA pulled from queue in node %i\n", node);
 		
+	     metric = pulledData->analysis; 
+
+
 	  //   data_send = malloc(sizeof(data_dsm*));
 /*	     data_send->dsm = (int**)malloc(sizeof(int*)*pulledData->cols);
 	     int y=0;
@@ -491,15 +543,16 @@ void *task_send_MPI(void *arg){
 	     printf("copy dsm to fixed array\n");
 
 	     //memcpy(matrix,pulledData->dsm, sizeof(matrix)); 
-
- 	
+	     //memset(hugeArray,0,5000*5000);
+ 	     int pp=0;			
 	     int ii,jj;
-	     for(ii=0;ii<colss; ii++){
-		for(jj=0;jj<colss;jj++){
+	     for(ii=0;ii<colss-1; ii++){
+		for(jj=0;jj<colss-1;jj++){
 		    //  memcpy(matrix[ii][jj], &(pulledData->dsm[ii][jj]), sizeof(matrix[ii][jj]));
 		    if(sizeof(pulledData->dsm[ii][jj])==sizeof(int)){
-			hugeMatrix[ii][jj] = pulledData->dsm[ii][jj];
-		        //printf("%d", pulledData->dsm[ii][jj]);
+			hugeArray[pp] = pulledData->dsm[ii][jj];
+			pp++;
+		        //printf("%i", pulledData->dsm[ii][jj]);
 		    }
 		    else{ 
 			printf("-_-_ Error: In POS i:%i j:%i", ii,jj);
@@ -520,9 +573,26 @@ void *task_send_MPI(void *arg){
 	//	test[1][0]= 0;
 	//	test[1][1]=1;
             // test = initializeTestDsm();
-	     ss = 2;	   
+	     ss = 2;
+	     int dd[4];	
+
+	     dd[0]=1;
+	     dd[1]=87;
+	     dd[2]=7;
+	     dd[3]=15;
+
+	     /*
+	     hugeMatrix[0][1]=1;	
+	     hugeMatrix[1][1]=1;	
+	     hugeMatrix[2][1]=1;	
+	     hugeMatrix[3][3]=1;	
+		*/
+	
+	     //SEND MATRIC ID	   
+	     MPI_Send(&metric, 1, MPI_INT, node, 1 , MPI_COMM_WORLD);		
+	     //SEND DSM SIZE
 	     MPI_Send(&colss, 1, MPI_INT, node, 1 , MPI_COMM_WORLD);		
-	     MPI_Send(&(hugeMatrix[0][0]), (colss)*(colss), MPI_INT, node, 1, MPI_COMM_WORLD);
+	     MPI_Send(&hugeArray[0], colss*colss, MPI_INT, node, 1, MPI_COMM_WORLD);
 	     printf("Job send from node 0, th:read num %i\n", node);
 	     printf("Waiting response from node %i...\n", node);
 	     MPI_Recv(&response, 1, MPI_FLOAT, node, 1 , MPI_COMM_WORLD, &status);	
@@ -669,7 +739,9 @@ void processData(char recvBuff[200000000],int size, dataqueue* dataqueue_p){
 		
 	int i=0, j=0;
 	data_dsm  *dsm;
+	data_dsm  *dsm2;
 	dsm = (data_dsm*)malloc(sizeof(data_dsm));	
+	dsm2 = (data_dsm*)malloc(sizeof(data_dsm));	
 
 	char sha[50]= "not initialized...";
 	
@@ -677,6 +749,7 @@ void processData(char recvBuff[200000000],int size, dataqueue* dataqueue_p){
 	strncpy(sha,saveID,strlen(saveID)*sizeof(char));
 	//sha[49]='\0';
 	memcpy(dsm->id, sha, sizeof(dsm->id));	
+	memcpy(dsm2->id, sha, sizeof(dsm2->id));	
 
 	//strcpy(dsm->id, saveID);
         
@@ -688,6 +761,7 @@ void processData(char recvBuff[200000000],int size, dataqueue* dataqueue_p){
 	
 	//dsm->id = ;
 	dsm->cols = atoi(saveCols);
+	dsm2->cols = atoi(saveCols);
         
 
 	printf("Free variables...\n");
@@ -705,9 +779,11 @@ void processData(char recvBuff[200000000],int size, dataqueue* dataqueue_p){
 	int rownum;
 
 	dsm->dsm  = (int**)malloc(sizeof(int*)*dsm->cols);
+	dsm2->dsm  = (int**)malloc(sizeof(int*)*dsm2->cols);
 	for(rownum=0; rownum<(dsm->cols); rownum++)
 	{
 	    dsm->dsm[rownum] = (int*)malloc(sizeof(int)*(dsm->cols));
+	    dsm2->dsm[rownum] = (int*)malloc(sizeof(int)*(dsm2->cols));
 	}
  	printf("Memory Allocated\n");	
 
@@ -726,6 +802,7 @@ void processData(char recvBuff[200000000],int size, dataqueue* dataqueue_p){
 	    {
 		col=0;
 		row++;
+		//printf("\n");
 	    } 	
 	    else
 	    {
@@ -735,13 +812,17 @@ void processData(char recvBuff[200000000],int size, dataqueue* dataqueue_p){
 		   char term;
 		   if(toInsert==0 || toInsert==1){
             	       dsm->dsm[row][col]=toInsert;
+	//	       printf("%i-",toInsert);
+            	       dsm2->dsm[row][col]=toInsert;
 	           }
 		   else{
 		       printf("WARNING:: could not read dependency value, 0 inserted in position instead");
 		       dsm->dsm[row][col]=0;
+		       dsm2->dsm[row][col]=0;
 		   }
 		} 
 	    }
+	   
 	}
 	
 	printf("Free dsm and conv...\n");
@@ -749,13 +830,28 @@ void processData(char recvBuff[200000000],int size, dataqueue* dataqueue_p){
 	printf("ok\n");
 
 	printf(" convert...\n");
-	
-        dsm->analysis=0;
-	dsm->result=-1;
 
+        /**************************************************************************************************************************/ 
+        /**************************************************************************************************************************/ 
+	//                                                    EXTENSIBLE POINT
+	//                     ADD for each new metric the same dsm to queue! Just change the analysis Id  
+        /**************************************************************************************************************************/ 
+	
+	dsm->result=-1;
+	//METRIC 0 - Propagation cost
+        dsm->analysis=0;
 	//ADD DSM TO QUEUE
 	dataqueue_add(dataqueue_p,dsm);
 	
+	
+	dsm2->result=-1;
+//	//METRIC 0 - Clustering cost
+        dsm2->analysis=1;
+	//ADD DSM TO QUEUE
+	dataqueue_add(dataqueue_p,dsm2);
+        
+	/**************************************************************************************************************************/ 
+        /**************************************************************************************************************************/ 
 	printf("ok\n");
 }
 	
